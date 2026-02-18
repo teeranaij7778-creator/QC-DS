@@ -9,8 +9,9 @@ import {
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, query, orderBy, serverTimestamp, writeBatch, getDocs, deleteDoc } from "firebase/firestore";
 
-/** * CATI CES 2026 Analytics Dashboard - FIREBASE EDITION (V5.3 DATE FILTER FIX)
- * - FIX: Added 'normalizeDate' helper function to handle mixed date formats (DD/MM/YYYY vs YYYY-MM-DD).
+/** * CATI CES 2026 Analytics Dashboard - FIREBASE EDITION (V5.5 SAFE SYNC)
+ * - FEATURE: Added 'Safe Sync' logic to prevent overwriting existing work with empty data from Sheet.
+ * - FIX: Updated audio file validation to strictly check for 'https:' in the URL string.
  * - FIX: Applied normalization logic to both 'baseFilteredData' and 'availableAgents'.
  */
 
@@ -328,10 +329,14 @@ const App = () => {
 
             setImportStatus({ type: 'loading', msg: `Analyzing ${rawData.length} records...` });
 
+            // 1. Create Lookup Map from existing 'data' state for Safe Sync
+            // This allows us to check if a record already exists and has been worked on
+            const currentDataMap = new Map(data.map(d => [d.id, d]));
+
             // --- DATA PREPARATION (Remove Headers if needed) ---
             let dataRows = rawData;
             
-            // 1. Detect if Header Row exists and remove it
+            // Detect if Header Row exists and remove it
             if (rawData.length > 0) {
                  const firstItem = rawData[0];
                  let isHeaderRow = false;
@@ -339,7 +344,6 @@ const App = () => {
                  // If array of arrays (Sheet data)
                  if (Array.isArray(firstItem)) {
                      const rowStr = firstItem.map(String).join(' ').toLowerCase();
-                     // Check for keywords indicating a header
                      if (rowStr.includes('month') || rowStr.includes('เดือน') || rowStr.includes('ลำดับที่') || rowStr.includes('year')) {
                          isHeaderRow = true;
                      }
@@ -481,6 +485,41 @@ const App = () => {
                         };
                     }
 
+                    // --- SAFE SYNC LOGIC ---
+                    // Check if this document already exists in our local state (meaning it's in DB)
+                    const existingDoc = currentDataMap.get(docId);
+
+                    if (existingDoc) {
+                        // Rule 1: Protect 'type' (Status)
+                        // If existing is set (AC/BC) and incoming is default ('ยังไม่ได้ตรวจ'), keep existing.
+                        if (existingDoc.type && existingDoc.type !== 'ยังไม่ได้ตรวจ' && (normalizedItem.type === 'ยังไม่ได้ตรวจ' || !normalizedItem.type)) {
+                            delete normalizedItem.type;
+                        }
+
+                        // Rule 2: Protect 'result' (Interview Result)
+                        // If existing has a result (not N/A) and incoming is N/A/Empty, keep existing.
+                        const isExistingResultValid = existingDoc.result && !existingDoc.result.startsWith('N/A') && existingDoc.result !== '-';
+                        const isIncomingResultEmpty = !normalizedItem.result || normalizedItem.result.startsWith('N/A') || normalizedItem.result === '-';
+                        
+                        if (isExistingResultValid && isIncomingResultEmpty) {
+                            delete normalizedItem.result;
+                            // If we keep the result, we must also keep the evaluations and score to match that result
+                            delete normalizedItem.evaluations; 
+                        }
+
+                        // Rule 3: Protect 'comment'
+                        if (existingDoc.comment && existingDoc.comment.trim().length > 0 && (!normalizedItem.comment || normalizedItem.comment.trim().length === 0)) {
+                            delete normalizedItem.comment;
+                        }
+
+                        // Rule 4: Protect 'supervisor'
+                        if (existingDoc.supervisor && (!normalizedItem.supervisor)) {
+                            delete normalizedItem.supervisor;
+                            delete normalizedItem.supervisorFilter;
+                        }
+                    }
+                    // -----------------------
+
                     const docRef = doc(db, "audit_cases", docId);
                     batch.set(docRef, normalizedItem, { merge: true });
                 });
@@ -564,6 +603,16 @@ const App = () => {
 
   const baseFilteredData = useMemo(() => {
     return data.filter(item => {
+      // --- FIX: FILTER OUT EMPTY ROWS (ป้องกันการแสดงผลข้อมูลว่าง) ---
+      // เช็คว่าถ้าไม่มีทั้งชื่อพนักงาน (Agent) และเลขชุด (QuestionnaireNo) ให้ถือว่าเป็นแถวว่างและไม่แสดงผล
+      const isInvalidAgent = !item.agent || item.agent === '- : -' || item.agent === 'Unknown' || item.agent === '-' || item.agent.trim() === '';
+      const isInvalidQNo = !item.questionnaireNo || item.questionnaireNo === '-' || item.questionnaireNo === 'N/A' || item.questionnaireNo.trim() === '';
+
+      if (isInvalidAgent && isInvalidQNo) {
+        return false;
+      }
+      // -----------------------------------------------------------
+
       // Force String conversion to prevent crash if data is number
       const strAgent = String(item.agent || '').toLowerCase();
       const strQNo = String(item.questionnaireNo || '').toLowerCase();
@@ -863,7 +912,7 @@ const App = () => {
                 <Download size={16} /> EXPORT CSV
               </button>
             )}
-            {userRole === 'Admin' && (
+            {['Admin', 'QC'].includes(userRole) && (
                 <button onClick={handleSyncFromSheet} disabled={importStatus?.type === 'loading'} className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black shadow-sm transition-all border ${importStatus?.type === 'loading' ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'}`}>
                     <RefreshCw size={16} className={importStatus?.type === 'loading' ? 'animate-spin' : ''} /> {importStatus?.type === 'loading' ? 'SYNCING...' : 'SYNC DATA FROM SHEET'}
                 </button>
@@ -1045,6 +1094,8 @@ const App = () => {
                         const isExpanded = expandedCaseId === item.id; 
                         const isEditing = editingCase && editingCase.id === item.id;
                         const isNewAudit = item.type === "ยังไม่ได้ตรวจ";
+                        // --- FIX: Strict Audio Validation (Check for 'https:' string) ---
+                        const hasAudio = item.audio && String(item.audio).includes('https:');
 
                         return (
                         <React.Fragment key={item.id}>
@@ -1064,10 +1115,14 @@ const App = () => {
                                 <td className="px-4 py-6 text-center border-r border-slate-100"><span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black border uppercase shadow-sm" style={{ backgroundColor: `${getResultColor(item.result)}10`, color: getResultColor(item.result), borderColor: `${getResultColor(item.result)}30` }}>{formatResultDisplay(item.result)}</span></td>
                                 <td className="px-8 py-6">
                                     <p className="text-slate-500 italic max-w-sm truncate group-hover:text-slate-700 transition-colors font-sans leading-relaxed">{item.comment ? `"${item.comment}"` : '-'}</p>
-                                    {item.audio && item.audio.length > 5 && (
+                                    {hasAudio ? (
                                         <a href={item.audio} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white font-black text-[9px] uppercase transition-all shadow-sm border border-indigo-100">
                                             <PlayCircle size={14} /> LISTEN RECORDING
                                         </a>
+                                    ) : (
+                                        <span className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 text-slate-400 font-black text-[9px] uppercase border border-slate-100 cursor-not-allowed opacity-70">
+                                            <FilterX size={14} /> ไม่พบไฟล์เสียง
+                                        </span>
                                     )}
                                 </td>
                             </tr>
@@ -1113,22 +1168,27 @@ const App = () => {
                                     </div>
                                 )}
 
-                                {item.audio && item.audio.length > 5 && (
-                                    <div className="mb-6 p-4 bg-white border border-indigo-100 rounded-2xl flex items-center justify-between shadow-sm">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
-                                                    <PlayCircle size={20} />
-                                                </div>
-                                                <div>
-                                                    <h5 className="text-xs font-black text-slate-700 uppercase">หลักฐานเสียงสัมภาษณ์</h5>
-                                                    <p className="text-[10px] text-slate-400">คลิกเพื่อฟังไฟล์เสียงที่บันทึกไว้</p>
-                                                </div>
+                                <div className="mb-6 p-4 bg-white border border-indigo-100 rounded-2xl flex items-center justify-between shadow-sm">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${hasAudio ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                {hasAudio ? <PlayCircle size={20} /> : <FilterX size={20} />}
                                             </div>
+                                            <div>
+                                                <h5 className="text-xs font-black text-slate-700 uppercase">หลักฐานเสียงสัมภาษณ์</h5>
+                                                <p className="text-[10px] text-slate-400">{hasAudio ? 'คลิกเพื่อฟังไฟล์เสียงที่บันทึกไว้' : 'ไม่พบข้อมูลไฟล์เสียงในระบบ'}</p>
+                                            </div>
+                                        </div>
+                                        {hasAudio ? (
                                             <a href={item.audio} target="_blank" rel="noopener noreferrer" className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-indigo-200">
                                                 <ExternalLink size={12}/> OPEN AUDIO
                                             </a>
-                                    </div>
-                                )}
+                                        ) : (
+                                            <span className="px-5 py-2 bg-slate-100 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-slate-200 cursor-not-allowed">
+                                                <FilterX size={12}/> ไม่พบไฟล์
+                                            </span>
+                                        )}
+                                </div>
+
                                 <div className="mb-8 p-6 bg-slate-100 border border-slate-200 rounded-[2rem] shadow-inner" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center gap-2 mb-4 text-indigo-500 font-black text-[10px] uppercase italic tracking-widest"><Star size={16} /> สรุปผลการสัมภาษณ์แบบละเอียด (Column M)</div>
                                     {isEditing ? (<div className="relative"><select className="w-full p-4 bg-white border border-indigo-200 rounded-2xl text-[11px] font-black text-slate-800 focus:ring-2 focus:ring-indigo-600 outline-none appearance-none shadow-sm" value={editingCase.result} onChange={e => setEditingCase({...editingCase, result: e.target.value})}>{RESULT_ORDER.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select><ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" /></div>) : (<p className="text-sm font-black italic text-slate-600 bg-white p-4 rounded-xl border border-slate-200 leading-relaxed shadow-sm">{item.result}</p>)}
