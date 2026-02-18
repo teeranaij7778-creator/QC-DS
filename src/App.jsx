@@ -364,6 +364,21 @@ const App = () => {
             
             const uniqueMap = new Map();
             dataRows.forEach(item => {
+                // --- FIX: SKIP EMPTY ROWS FROM SHEET (V5.6) ---
+                // ป้องกันการดึงแถวว่างจาก Google Sheet เข้ามา
+                if (Array.isArray(item)) {
+                    // ตรวจสอบคอลัมน์สำคัญ: Index 4 (QNo), Index 9 (AgentID), Index 10 (AgentName)
+                    // ถ้าไม่มีข้อมูลในคอลัมน์เหล่านี้เลย ให้ถือว่าเป็นแถวว่างและข้ามไป
+                    const qNoVal = item[4] ? String(item[4]).trim() : '';
+                    const agentIdVal = item[9] ? String(item[9]).trim() : '';
+                    const agentNameVal = item[10] ? String(item[10]).trim() : '';
+                    
+                    if (!qNoVal && !agentIdVal && !agentNameVal) {
+                        return; // ข้ามแถวนี้ทันที
+                    }
+                }
+                // ---------------------------------------------
+
                 let qNo = '';
                 if(Array.isArray(item)) {
                      qNo = item[4] ? String(item[4]).trim() : '';
