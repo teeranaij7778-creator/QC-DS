@@ -1,213 +1,42 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, ComposedChart, Line
 } from 'recharts';
 import { 
-  Users, CheckCircle, AlertTriangle, XCircle, Search, 
-  FileText, BarChart2, MessageSquare, TrendingUp, Database, RefreshCw, Trash2, FilterX, PlayCircle, Settings, AlertCircle, Info, ChevronRight, ExternalLink, User, ChevronDown, CheckSquare, Square, X, Lock, Activity, Filter, Clock, Award, Save, Edit2, Hash, Star, Zap, MousePointerClick, UserPlus, MapPin, Flame, Cloud, Loader2, Upload, FileJson, Download, AlertOctagon,
-  FolderOpen, FileSpreadsheet, DownloadCloud, ChevronLeft, Calendar
+  Users, CheckCircle, AlertTriangle, XCircle, Search, FileText, BarChart2, MessageSquare, TrendingUp, Database, RefreshCw, FilterX, PlayCircle, Settings, AlertCircle, Info, ChevronRight, ExternalLink, User, ChevronDown, CheckSquare, Square, X, Activity, Filter, Award, Save, Edit2, Hash, Star, Zap, MapPin, Flame, Loader2, Download, FolderOpen, FileSpreadsheet, DownloadCloud, ChevronLeft, Calendar, Shield
 } from 'lucide-react';
-import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, query, orderBy, serverTimestamp, writeBatch, getDocs, getDoc, setDoc, deleteDoc, where, limit } from "firebase/firestore";
-import { getStorage, ref, listAll, getDownloadURL, getBlob } from "firebase/storage";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
-
-const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyACA30Lms1pRejuA2FdtYDYDSe8fD2lNB8",
-  authDomain: "test-qc-a33b6.firebaseapp.com",
-  projectId: "test-qc-a33b6",
-  storageBucket: "test-qc-a33b6.firebasestorage.app",
-  messagingSenderId: "647004289726",
-  appId: "1:647004289726:web:f60202a45d6ef961eebcef"
-};
-
-const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwIZCWN9z0IfAvJp-Q0GUnLq9OJRp6fkzR9DRLFu5lzOkZkaXIClwqod0vvreiBSBUoMA/exec";
-
-const RESULT_ORDER = [
-  'ดีเยี่ยม: ครบถ้วนตามมาตรฐาน (พนักงานทำได้ดีทุกข้อ น้ำเสียงเป็นมืออาชีพ ข้อมูลแม่นยำ 100%)',
-  'ผ่านเกณฑ์: ปฏิบัติงานได้ถูกต้อง (ทำได้ตามมาตรฐาน มีข้อผิดพลาดเล็กน้อยที่ไม่กระทบคุณภาพข้อมูลหลัก)',
-  'ควรปรับปรุง: มารยาทและน้ำเสียง (มีคำฟุ่มเฟือย/หัวเราะขณะสัมภาษณ์ หรือสนิทสนมกับผู้ตอบมากเกินไป)',
-  'ควรปรับปรุง: การอ่านคำถาม/ตัวเลือก (อ่านไม่ครบถ้วน อ่านข้ามตัวเลือก หรือรวบรัดคำถามตามความเข้าใจตนเอง)',
-  'ควรปรับปรุง: การจดบันทึก Open-end (จดบันทึกไม่ละเอียด ไม่ครบทุกคำ หรือซักคำถามปลายเปิดไม่เพียงพอ)',
-  'พบข้อผิดพลาด: มีการชี้นำคำตอบ (แสดงความเห็นส่วนตัว แนะนำคำตอบ หรือพูดแทรกเพื่อเร่งรัดการสัมภาษณ์)',
-  'พบข้อผิดพลาด: ข้อมูลไม่ตรงตามจริง (บันทึกคำตอบผิดจากที่ตอบจริง หรือทำผิดเงื่อนไข Logic ของแบบสอบถาม)',
-  'ไม่ผ่านเกณฑ์: ต้องอบรมใหม่ทันที (มีข้อผิดพลาดรุนแรงในจุดสำคัญหลายข้อซึ่งส่งผลเสียต่อคุณภาพงานวิจัย)'
-];
-
-const SCORE_LABELS = { '5': '5.ดี', '4': '4.ค่อนข้างดี', '3': '3.ปานกลาง', '2': '2.ไม่ค่อยดี', '1': '1.ไม่ดีเลย', '-': '-' };
-
-const CRITERIA_DESCRIPTIONS = [
-  "(1) การแนะนำตัว สามารถแนะนำตัว บอกวัตถุประสงค์ของการสัมภาษณ์ได้อย่างสุภาพชัดเจนเป็นมืออาชีพ และแจ้งต่อผู้ให้สัมภาษณ์ว่าข้อมูลเป็นความลับ ทางบริษัทฯจะนำความคิดเห็นไปวิเคราะห์ ในภาพรวม โดยจะไม่นำข้อมูลส่วนบุคคลหรือข้อมูลของบุคคลใดบุคคลหนึ่งไปเผยแพร่",
-  "(2) การคัดเลือกผู้ให้สัมภาษณ์ คัดเลือกผู้ให้สัมภาษณ์ได้อย่างถูกต้องตรงตามข้อกำหนดของงาน หากจำเป็น มีการนัดหมาย เพื่อโทรกลับไปสัมภาษณ์ได้อย่างเหมาะสม",
-  "(3) มีความเข้าใจแบบสอบถามอย่างถ่องแท้ (เข้าใจเกี่ยวกับ..โลจิก..ของแต่ละคำถาม)",
-  "(4) สัมภาษณ์โดยการใช้น้ำเสียงและความเร็วที่เหมาะสม อ่านคำถามได้อย่างชัดเจน และเป็นธรรมชาติ รวมถึงการใช้คำพูดระหว่างสัมภาษณ์ ไม่เป็นกันเองจนมากเกินไป ไม่หัวเราะขณะสัมภาษณ์ เเละใช้คำเปลือง เช่น อ่อ เน้อ อ่อเหรอ",
-  "(5) สามารถถามคำถามได้อย่างถูกต้อง อ่านคำถามตามแบบสอบถาม ไม่รวบรัดคำถามตามความเข้าใจของตนเอง และในกรณีที่ RD ไม่เข้าใจคำถาม มีการอ่านทวน และอธิบาย RD ได้ตรงตามที่รับ Brief มา",
-  "(6) ไม่แนะนำคำตอบแก่ผู้ให้สัมภาษณ์ตามความรู้สึกของตนเอง และไม่แนะนำคำตอบเพื่อเป็นการเร่งรัดให้การสัมภาษณ์เสร็จสิ้นโดยไว และไม่พูดแทรก rd รับฟังความคิดเห็นเมื่อ rd พูด",
-  "(7) เข้าใจและทำงานสัมภาษณ์ตรงตามคำสั่งในแบบสอบถามได้อย่างถูกต้อง",
-  "(8) มีการซักคำตอบที่เพียงพอ สำหรับคำถามที่เป็นคำถามเปิด และคำถามปิด",
-  "(9) บันทึกคำตอบได้ถูกต้อง ตรงตามคำตอบที่ผู้ให้สัมภาษณ์ตอบมา ไม่สรุปคำตอบของ RD ตามความเข้าใจตนเอง มีการถามย้ำกับ RD ในกรณีที่ RD ตอบไม่ชัดเจน กรณีที่มีการบันทึกคำตอบไม่ถูกต้อง ต้องระบุข้อและคำตอบที่ถูกต้องและแจ้งต่อ DP เพื่อแก้ไขข้อมูลให้ถูกต้อง",
-  "(10) คำถาม Open-end พนักงานได้ทำการจดบันทึกคำตอบของ RD คำต่อคำ โดยไม่รวบรัดตัดตอนและไม่เพิ่มความคิดเห็นของตนเองโดยที่ RD มิได้ตอบมา",
-  "(11) มีการอ่านตัวเลือก หรือทวนคะแนนให้ RD ฟังอย่างถูกต้องและครบถ้วน",
-  "(12) สามารถรับมือกับสถานการณ์เฉพาะหน้าได้ดี เช่นเมื่อผู้ให้สัมภาษณ์เริ่มแสดงอาการ หรือคำพูดที่ไม่อยากให้สัมภาษณ์ต่อ หรือผู้ให้สัมภาษณ์ไม่ตอบคำถามแต่ซักถามพนักงานอยู่ตลอดเวลา เเละสามารถซักตอบคำถาม rd ได้ รวมถึงกรณีสายหลุดเเละขอติดต่อใหม่ เป็นต้น",
-  "(13) การปิดสัมภาษณ์ (ทั้งสำเร็จและไม่สำเร็จ) ได้กล่าวขอบคุณต่อผู้ให้สัมภาษณ์อย่างเหมาะสม"
-];
-const DEFAULT_SUPERVISORS = ['เสกข์พลกฤต', 'ศรัณยกร', 'นิตยา', 'มณีรัตน์', 'Gallup'];
-
-const formatResultDisplay = (text) => (text ? text.split('(')[0].trim() : '-');
-
-const RESULT_COLORS = {
-  'ดีเยี่ยม': '#6366f1',
-  'ผ่านเกณฑ์': '#10B981',
-  'ควรปรับปรุง': '#F59E0B',
-  'พบข้อผิดพลาด': '#f43f5e',
-  'ไม่ผ่านเกณฑ์': '#be123c',
-};
-
-const getResultColor = (fullText) => {
-  if (!fullText) return '#94a3b8';
-  for (const [key, color] of Object.entries(RESULT_COLORS)) {
-    if (fullText.startsWith(key)) return color;
-  }
-  return '#94a3b8';
-};
-
-const getDriveId = (url) => {
-  if (!url) return null;
-  const strUrl = String(url);
-  const driveMatch = strUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (driveMatch && driveMatch[1]) return driveMatch[1];
-  const idMatch = strUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (strUrl.includes('drive.google.com') && idMatch && idMatch[1]) return idMatch[1];
-  return null;
-};
-
-const normalizeDate = (dateStr) => {
-  if (!dateStr) return '';
-  const str = String(dateStr).trim();
-  if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
-  if (str.includes('/')) {
-    const parts = str.split('/');
-    if (parts.length === 3 && parts[2].length === 4) {
-      return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
-    }
-  }
-  return str;
-};
-
-const MONTH_ORDER = {
-  'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
-  'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12,
-  'ม.ค.': 1, 'ก.พ.': 2, 'มี.ค.': 3, 'เม.ย.': 4, 'พ.ค.': 5, 'มิ.ย.': 6,
-  'ก.ค.': 7, 'ส.ค.': 8, 'ก.ย.': 9, 'ต.ค.': 10, 'พ.ย.': 11, 'ธ.ค.': 12,
-  'มกราคม': 1, 'กุมภาพันธ์': 2, 'มีนาคม': 3, 'เมษายน': 4, 'พฤษภาคม': 5, 'มิถุนายน': 6,
-  'กรกฎาคม': 7, 'สิงหาคม': 8, 'กันยายน': 9, 'ตุลาคม': 10, 'พฤศจิกายน': 11, 'ธันวาคม': 12
-};
-
-const getMonthWeight = (monthStr) => {
-  if (!monthStr) return 99;
-  const m = monthStr.trim().toUpperCase();
-  if (MONTH_ORDER[m]) return MONTH_ORDER[m];
-  const prefix = m.substring(0, 3);
-  if (MONTH_ORDER[prefix]) return MONTH_ORDER[prefix];
-  return 99;
-};
-
-// ──────────────────────────────────────────────
-// MINI COMPONENTS
-// ──────────────────────────────────────────────
-
-const Logo = () => (
-  <div className="flex items-center gap-3">
-    <div className="relative">
-      <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-300">
-        <Activity size={18} className="text-white" />
-      </div>
-      <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white animate-pulse" />
-    </div>
-    <div>
-      <div className="text-sm font-black tracking-widest text-slate-800 uppercase leading-none">INTAGE</div>
-      <div className="text-[9px] font-bold text-slate-400 tracking-[0.2em] uppercase leading-none mt-0.5">Firebase Edition</div>
-    </div>
-  </div>
-);
-
-const StatusBadge = ({ result }) => {
-  const color = getResultColor(result);
-  const label = formatResultDisplay(result);
-  return (
-    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black border uppercase"
-      style={{ backgroundColor: `${color}15`, color, borderColor: `${color}30` }}>
-      {label}
-    </span>
-  );
-};
-
-const FilterSection = ({ title, items, selectedItems, onToggle, onSelectAll, onClear, maxH = "max-h-40" }) => (
-  <div className="space-y-2">
-    <div className="flex items-center justify-between">
-      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</label>
-      <div className="flex gap-3">
-        <button onClick={onSelectAll} className="text-[10px] font-bold text-indigo-400 hover:text-indigo-600">เลือกทั้งหมด</button>
-        <button onClick={onClear} className="text-[10px] font-bold text-slate-400 hover:text-rose-500">ล้าง</button>
-      </div>
-    </div>
-    <div className={`overflow-y-auto space-y-1 ${maxH}`}>
-      {items.map(item => (
-        <div key={item} onClick={() => onToggle(item)}
-          className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-[11px] font-semibold transition-all
-            ${selectedItems.includes(item) ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'hover:bg-slate-50 text-slate-500 border border-transparent'}`}>
-          {selectedItems.includes(item)
-            ? <CheckSquare size={13} className="text-indigo-600 shrink-0" />
-            : <Square size={13} className="shrink-0 text-slate-300" />}
-          <span className="truncate">{formatResultDisplay(item)}</span>
-        </div>
-      ))}
-    </div>
-  </div>
-);
+import { collection, doc, updateDoc, addDoc, serverTimestamp, writeBatch, getDocs, getDoc, setDoc, deleteDoc, query, where } from "firebase/firestore";
+import { ref, listAll, getDownloadURL, getBlob } from "firebase/storage";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { DEFAULT_FIREBASE_CONFIG, DEFAULT_SCRIPT_URL, RESULT_ORDER, SCORE_LABELS, CRITERIA_DESCRIPTIONS, DEFAULT_SUPERVISORS } from './constants';
+import { formatResultDisplay, getResultColor, getDriveId, normalizeDate, getMonthWeight } from './utils';
+import { Logo, StatusBadge, FilterSection } from './UiComponents';
+import { MonthSelectorModal } from './MonthSelectorModal';
+import { HotsheetModal } from './HotsheetModal';
+import { useFirebase } from './useFirebase';
+import { useDataFetch } from './useDataFetch';
 
 // ──────────────────────────────────────────────
 // MAIN APP
 // ──────────────────────────────────────────────
 
 export default function App() {
-  // Auth
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState(null);
+  const navigate = useNavigate();
   const [inputUser, setInputUser] = useState('');
   const [inputPass, setInputPass] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // Data
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Firebase
-  const [db, setDb] = useState(null);
-  const [storage, setStorage] = useState(null); // <-- Added Storage State
-  const [auth, setAuth] = useState(null);
-  const [firebaseConfigStr, setFirebaseConfigStr] = useState(
-    (() => { try { return localStorage.getItem('firebase_config_str') || JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2); } catch(e) { return JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2); } })()
-  );
   const [showSettings, setShowSettings] = useState(false);
-  const [importMode, setImportMode] = useState('config');
-  const [importJson, setImportJson] = useState('');
-  const [importStatus, setImportStatus] = useState(null);
-  const [appsScriptUrl, setAppsScriptUrl] = useState(
-    (() => { try { return localStorage.getItem('apps_script_url') || DEFAULT_SCRIPT_URL; } catch(e) { return DEFAULT_SCRIPT_URL; } })()
-  );
 
-  // Modals
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [dbSearchResults, setDbSearchResults] = useState(null);
-  const [isSearchingDB, setIsSearchingDB] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [selectedMonths, setSelectedMonths] = useState([]);
@@ -231,13 +60,69 @@ export default function App() {
   const [expandedCaseId, setExpandedCaseId] = useState(null);
   const [editingCase, setEditingCase] = useState(null);
   const [displayLimit, setDisplayLimit] = useState(50);
-  const [supervisorsData, setSupervisorsData] = useState([]);
-  const [newSupervisor, setNewSupervisor] = useState('');
-  const [allAvailableMonths, setAllAvailableMonths] = useState([]);
 
-  const [showMonthSelector, setShowMonthSelector] = useState(true);
+  const [showMonthSelector, setShowMonthSelector] = useState(false);
   const [selectedStartupMonths, setSelectedStartupMonths] = useState([]);
   const [isStartupInitialized, setIsStartupInitialized] = useState(false);
+  const [activeProjectId, setActiveProjectId] = useState('');
+  const [activeProject, setActiveProject] = useState(null);
+
+  // Project Selection
+  const [projects, setProjects] = useState([]);
+  const [needsProjectSelection, setNeedsProjectSelection] = useState(false);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [hasCheckedProjects, setHasCheckedProjects] = useState(false);
+
+  // ── HOOKS ── (ต้องประกาศก่อน useEffect เสมอ)
+  const { db, storage, auth, firebaseError, setFirebaseError, isAuthenticated, userRole, firebaseConfigStr, setFirebaseConfigStr } = useFirebase();
+  const { data, loading, fetchError, setFetchError, allAvailableMonths, supervisorsData, dbSearchResults, setDbSearchResults, isSearchingDB } = useDataFetch(db, selectedMonths, debouncedSearchTerm);
+  const currentError = firebaseError || fetchError;
+  const clearError = () => { setFirebaseError(null); setFetchError(null); };
+
+  useEffect(() => {
+    if(db && activeProjectId) {
+      getDoc(doc(db, 'projects', activeProjectId)).then(snap => {
+        if(snap.exists()) setActiveProject({ id: snap.id, ...snap.data() });
+      }).catch(console.error);
+    }
+  }, [db, activeProjectId]);
+
+  // Project selection logic
+  useEffect(() => {
+    if (isAuthenticated && db) {
+      setIsLoadingProjects(true);
+      getDocs(collection(db, 'projects')).then(snap => {
+        let projs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name));
+        
+        // ดักสิทธิ์: กรองให้เหลือโปรเจกต์เดียวหากเป็น Role Gallup หรือใช้อีเมล qc@gullup.com
+        const currentRole = String(userRole || '').toLowerCase().trim();
+        const currentEmail = String(auth?.currentUser?.email || '').toLowerCase().trim();
+        if (currentRole === 'gallup' || currentRole === 'gullup' || currentEmail === 'qc@gullup.com' || currentEmail === 'qc@gallup.com') {
+          projs = projs.filter(p => p.id === 'JE9AjnmD1UQZkFefE65X');
+        }
+
+        setProjects(projs);
+        
+        // ยกเลิกการจดจำโปรเจกต์อัตโนมัติ เพื่อบังคับให้โชว์หน้า "เลือกโปรเจกต์" ก่อนเสมอ
+        if (projs.length > 0) {
+          if (projs.length === 1) {
+            handleSelectProject(projs[0].id);
+          } else {
+            setNeedsProjectSelection(true);
+          }
+        }
+        setIsLoadingProjects(false);
+        setHasCheckedProjects(true);
+      }).catch(err => {
+        console.error("Error fetching projects:", err);
+        setIsLoadingProjects(false);
+        setHasCheckedProjects(true);
+      });
+    } else if (!isAuthenticated) {
+      setIsLoadingProjects(false);
+      setHasCheckedProjects(false);
+    }
+  }, [isAuthenticated, db, userRole, auth]);
 
   // Reset displayLimit when filters change
   useEffect(() => {
@@ -250,175 +135,6 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  useEffect(() => {
-    if (!db || !debouncedSearchTerm.trim()) {
-      setDbSearchResults(null);
-      return;
-    }
-    
-    setIsSearchingDB(true);
-    const term = debouncedSearchTerm.trim();
-    
-    const fetchSearch = async () => {
-      try {
-        const resultsMap = new Map();
-
-        // 1. Exact match via doc ID (Questionnaire No)
-        const docIdSearch = term.replace(/\//g,'_');
-        const docRef = doc(db, "audit_cases", docIdSearch);
-        
-        // 2. Prefix queries for multiple fields
-        const qNoQuery = query(collection(db, "audit_cases"), where("questionnaireNo", ">=", term), where("questionnaireNo", "<=", term + '\uf8ff'), limit(30));
-        const agentQuery = query(collection(db, "audit_cases"), where("agent", ">=", term), where("agent", "<=", term + '\uf8ff'), limit(30));
-        const nameQuery = query(collection(db, "audit_cases"), where("rawName", ">=", term), where("rawName", "<=", term + '\uf8ff'), limit(30));
-
-        const [docSnap, snap1, snap2, snap3] = await Promise.all([
-          getDoc(docRef),
-          getDocs(qNoQuery),
-          getDocs(agentQuery),
-          getDocs(nameQuery)
-        ]);
-
-        if (docSnap.exists()) {
-          resultsMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
-        }
-        snap1.docs.forEach(d => resultsMap.set(d.id, { id: d.id, ...d.data() }));
-        snap2.docs.forEach(d => resultsMap.set(d.id, { id: d.id, ...d.data() }));
-        snap3.docs.forEach(d => resultsMap.set(d.id, { id: d.id, ...d.data() }));
-        
-        setDbSearchResults(Array.from(resultsMap.values()));
-      } catch (err) {
-        console.error("Search error:", err);
-      }
-      setIsSearchingDB(false);
-    };
-    fetchSearch();
-  }, [db, debouncedSearchTerm]);
-
-  // ── Init Firebase ──
-  useEffect(() => {
-    // Pre-select the latest month for the startup modal
-    if (allAvailableMonths.length > 0 && !isStartupInitialized) {
-      setSelectedStartupMonths([allAvailableMonths[allAvailableMonths.length - 1]]);
-      setIsStartupInitialized(true);
-    }
-  }, [allAvailableMonths, isStartupInitialized]);
-
-  useEffect(() => {
-    if (!firebaseConfigStr) return;
-    try {
-      const config = JSON.parse(firebaseConfigStr);
-      const appName = "QC_DASH_V5";
-      const existing = getApps().find(a => a.name === appName);
-      const app = existing || initializeApp(config, appName);
-      setDb(getFirestore(app));
-      setStorage(getStorage(app)); // <-- Init Storage
-      setAuth(getAuth(app));
-      setError(null);
-    } catch (e) {
-      setError("Firebase Config ไม่ถูกต้อง: " + e.message);
-    }
-  }, [firebaseConfigStr]);
-
-  // ── Auth State Listener ──
-  useEffect(() => {
-    if (!auth || !db) return;
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          // ค้นหาสิทธิ์ (Role) จาก Firestore collection 'user_roles' โดยใช้อีเมล
-          const roleDoc = await getDoc(doc(db, "user_roles", user.email));
-          if (roleDoc.exists()) {
-            setUserRole(roleDoc.data().role);
-          } else {
-            // Fallback: หากยังไม่ได้สร้างตาราง user_roles ให้เดาสิทธิ์จากชื่ออีเมลชั่วคราว
-            const tempRole = user.email.toLowerCase().includes('admin') ? 'Admin' : (user.email.toLowerCase().includes('qc') ? 'QC' : 'INV');
-            setUserRole(tempRole);
-          }
-          setIsAuthenticated(true);
-        } catch (error) {
-          console.error("Auth role error:", error);
-        }
-      } else {
-        setIsAuthenticated(false);
-        setUserRole(null);
-      }
-    });
-    return () => unsubscribe();
-  }, [auth, db]);
-
-  // ── Real-time listener ──
-  useEffect(() => {
-    if (!db) return;
-
-    // หากไม่ได้เลือกเดือน ให้หยุดการดึงข้อมูลเพื่อประหยัด Read
-    if (selectedMonths.length === 0) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    
-    let q;
-    // จำกัดไม่เกิน 30 เดือนตามข้อจำกัด Firestore
-    if (selectedMonths.length <= 30) {
-      q = query(collection(db, "audit_cases"), where("month", "in", selectedMonths), orderBy("date", "desc"));
-    } else {
-      // หากเลือกเกิน 30 เดือน ดึง 2,000 เคสล่าสุด
-      q = query(collection(db, "audit_cases"), orderBy("date", "desc"), limit(2000));
-    }
-
-    const unsub = onSnapshot(q, snap => {
-      setData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-      // หากโหลดสำเร็จ ให้ล้าง Error เกี่ยวกับ Index ที่อาจค้างอยู่
-      if (error && error.includes('Index Required')) {
-        setError(null);
-      }
-    }, err => {
-      if (err.code === 'permission-denied') {
-        setError("⚠️ Permission Denied! กรุณาไปที่ Firebase Console > Firestore > Rules แล้วเปลี่ยนเป็น 'allow read, write: if true;'");
-      } else if (err.code === 'failed-precondition' && err.message.includes('index')) {
-        setError(`⚠️ Index Required! การกรองข้อมูลแบบนี้ต้องการการตั้งค่า Index ในฐานข้อมูลก่อน กรุณาส่งลิงก์นี้ให้ผู้พัฒนาเพื่อสร้าง Index ที่จำเป็น:\n\n${err.message.substring(err.message.indexOf('https://'))}`);
-      } else {
-        setError("Connection Error: " + err.message);
-      }
-      setLoading(false);
-    });
-    return () => unsub();
-  }, [db, selectedMonths]);
-
-  // ── Listener for all available months ──
-  useEffect(() => {
-    if (!db) return;
-    const unsub = onSnapshot(doc(db, "metadata", "months"), (docSnap) => {
-      if (docSnap.exists()) {
-        const monthData = docSnap.data();
-        if (Array.isArray(monthData.all)) {
-            const sortedMonths = [...monthData.all].sort((a, b) => {
-                const aVal = getMonthWeight(a);
-                const bVal = getMonthWeight(b);
-                if (aVal === bVal) return a.localeCompare(b);
-                return aVal - bVal;
-            });
-            setAllAvailableMonths(sortedMonths);
-        }
-      }
-    });
-    return () => unsub();
-  }, [db]);
-
-  // ── Real-time listener for supervisors ──
-  useEffect(() => {
-    if (!db) return;
-    const unsub = onSnapshot(collection(db, "supervisors"), snap => {
-      setSupervisorsData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, err => {
-      console.error("Supervisors fetch error:", err);
-    });
-    return () => unsub();
-  }, [db]);
   // ── Hotsheet Logic ── <-- Added Hotsheet Fetch & Filter
   useEffect(() => {
     if (!showHotsheetModal || !storage) return;
@@ -492,6 +208,29 @@ export default function App() {
     }
   };
 
+  const handleSelectProject = (projectId) => {
+    try {
+      localStorage.setItem('active_project_id', projectId);
+    } catch (e) {}
+
+    setActiveProjectId(projectId);
+    setNeedsProjectSelection(false);
+    
+    // บังคับเปิดหน้าเลือกเดือน และล้างข้อมูลตัวกรองของโปรเจกต์เดิมทิ้งทั้งหมด
+    setShowMonthSelector(true);
+    setSelectedMonths([]);
+    setSelectedStartupMonths([]);
+    setDateRange({ start: '', end: '' });
+    setSelectedSups([]);
+    setSelectedResults([]);
+    setSelectedAgents([]);
+    setSelectedTypes([]);
+    setSelectedTouchpoints([]);
+    setActiveKpiFilter(null);
+    setActiveCell({ agent: null, resultType: null });
+    setSearchTerm('');
+  };
+
   // ── Notify helper ──
   const showNotif = (type, message) => {
     const id = Date.now() + Math.random();
@@ -550,57 +289,6 @@ export default function App() {
     setIsSaving(false);
   };
 
-  // ── Manage Supervisors ──
-  const handleAddSupervisor = async () => {
-    if (!newSupervisor.trim() || !db) return;
-    try {
-      await addDoc(collection(db, "supervisors"), {
-        name: newSupervisor.trim(),
-        timestamp: serverTimestamp()
-      });
-      setNewSupervisor('');
-      showNotif('success', "เพิ่มรายชื่อ Supervisor สำเร็จ ✓");
-    } catch (err) {
-      showNotif('error', "Error: " + err.message);
-    }
-  };
-
-  const handleDeleteSupervisor = async (id, name) => {
-    if (!db) return;
-    if (!window.confirm(`ยืนยันการลบรายชื่อ Supervisor: ${name} หรือไม่?`)) return;
-    try {
-      await deleteDoc(doc(db, "supervisors", id));
-      showNotif('success', "ลบรายชื่อเรียบร้อย ✓");
-    } catch (err) {
-      showNotif('error', "Error: " + err.message);
-    }
-  };
-
-  // ── Clear DB ──
-  const executeClearDatabase = async () => {
-    setShowClearConfirm(false);
-    if (!db) return;
-    setImportStatus({ type: 'loading', msg: '⏳ Deleting all records...' });
-    try {
-      const snap = await getDocs(collection(db, "audit_cases"));
-      if (snap.empty) { setImportStatus({ type: 'success', msg: "Database is already empty." }); setTimeout(() => setImportStatus(null), 3000); return; }
-      const chunks = [];
-      for (let i = 0; i < snap.docs.length; i += 400) chunks.push(snap.docs.slice(i, i + 400));
-      let deleted = 0;
-      for (const chunk of chunks) {
-        const batch = writeBatch(db);
-        chunk.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-        deleted += chunk.length;
-        setImportStatus({ type: 'loading', msg: `🗑️ Deleted ${deleted} / ${snap.docs.length}...` });
-      }
-      setImportStatus({ type: 'success', msg: `✅ Cleared ${deleted} records.` });
-      setTimeout(() => setImportStatus(null), 3000);
-    } catch (e) {
-      setImportStatus({ type: 'error', msg: "Delete Failed: " + e.message });
-    }
-  };
-
   // ── Export CSV ──
   const handleExportCSV = () => {
     const headers = ["Month","Date","QuestionnaireNo","Touchpoint","Agent","InterviewerID","Name","Type","Result","Supervisor","Comment","Audio",...Array.from({length:13},(_,i)=>`Criteria ${i+1}`)];
@@ -616,21 +304,38 @@ export default function App() {
     a.click();
   };
 
-  // ── Process & Upload ──
-  const processAndUploadData = async (rawData) => {
-    if (!db) { showNotif('error', "ไม่พบการเชื่อมต่อ Database"); return; }
+  // ── Quick Sync (500 rows) ──
+  const handleQuickSync = async () => {
+    if (!activeProject?.appsScriptUrl) {
+      showNotif('error', "ไม่พบ Web App URL สำหรับดึงข้อมูล (กรุณาตั้งค่าที่ระบบกลาง)");
+      return;
+    }
+    setIsSyncing(true);
+    showNotif('info', 'กำลังดึงข้อมูลจาก Google Sheets...');
     try {
-      if (!Array.isArray(rawData)) throw new Error("ข้อมูลต้องเป็น Array [...]");
-      setImportStatus({ type: 'loading', msg: `Analyzing ${rawData.length} records...` });
+      const res = await fetch(activeProject.appsScriptUrl);
+      if (!res.ok) throw new Error("Fetch failed");
+      const json = await res.json();
+      let rows = Array.isArray(json) ? json : (json.data || []);
+      if (!rows.length) throw new Error("No data found in Sheet");
+      const header = rows[0];
+      let dataRows = rows.slice(1).filter(row => {
+        const values = Array.isArray(row) ? row : Object.values(row);
+        return values.some(val => val !== null && val !== undefined && String(val).trim() !== '');
+      });
+      // เลือกเฉพาะ 500 แถวล่าสุด
+      if (dataRows.length > 500) dataRows = dataRows.slice(-500);
+      
+      const rawData = [header, ...dataRows];
       const uniqueMonthsInUpload = new Set();
-      let dataRows = rawData;
+      let dataToProcess = rawData;
       if (rawData.length > 0) {
         const first = rawData[0];
         const str = (Array.isArray(first) ? first : Object.values(first)).join(' ').toLowerCase();
-        if (str.includes('month') || str.includes('เดือน')) dataRows = rawData.slice(1);
+        if (str.includes('month') || str.includes('เดือน')) dataToProcess = rawData.slice(1);
       }
       const uniqueMap = new Map();
-      dataRows.forEach(item => {
+      dataToProcess.forEach(item => {
         if (Array.isArray(item)) {
           const qNo = item[4] ? String(item[4]).trim() : '';
           const agentId = item[9] ? String(item[9]).trim() : '';
@@ -639,7 +344,6 @@ export default function App() {
         }
         let qNo = Array.isArray(item) ? (item[4] ? String(item[4]).trim() : '') : (item.questionnaireNo || item.QuestionnaireNo || '');
         if (['QuestionnaireNo','เลขชุด','Questionnaire No.'].includes(qNo)) return;
-        
         let cleanQNo = String(qNo).trim();
         let isBlankId = !cleanQNo || cleanQNo === '-' || cleanQNo.toUpperCase() === 'N/A';
         const key = isBlankId ? `NO_ID_${Math.random()}` : cleanQNo.replace(/\//g,'_');
@@ -650,55 +354,28 @@ export default function App() {
       for (let i = 0; i < uniqueData.length; i += 400) chunks.push(uniqueData.slice(i, i + 400));
       let total = 0;
       for (const chunk of chunks) {
-        // 1. Prepare items
         const preparedItems = chunk.map(item => {
-          let norm = {};
-          let docId = '';
+          let norm = {}; let docId = '';
           const getVal = (obj, keys) => { for (const k of keys) { if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return String(obj[k]); } return ''; };
-          const matchResult = (raw) => {
-            const r = String(raw || 'N/A').trim();
-            return RESULT_ORDER.find(opt => r.startsWith(opt.split(':')[0].trim())) || r;
-          };
+          const matchResult = (raw) => { const r = String(raw || 'N/A').trim(); return (RESULT_ORDER || []).find(opt => r.startsWith(opt.split(':')[0].trim())) || r; };
           if (Array.isArray(item)) {
             const rawQNo = item[4] ? String(item[4]).trim().replace(/\//g,'_') : '';
-            docId = (rawQNo && rawQNo !== '-' && rawQNo.toUpperCase() !== 'N/A') ? rawQNo : doc(collection(db,"audit_cases")).id;
+            const baseDocId = (rawQNo && rawQNo !== '-' && rawQNo.toUpperCase() !== 'N/A') ? rawQNo : doc(collection(db,"audit_cases")).id;
+            docId = `${activeProjectId}_${baseDocId}`;
             const evals = Array(13).fill(0).map((_,i) => ({ label:`Criteria ${i+1}`, value: String(item[15+i]||'-') }));
-            norm = {
-              month: item[2]||'N/A', date: item[3] ? String(item[3]).split('T')[0] : new Date().toISOString().split('T')[0],
-              questionnaireNo: item[4] ? String(item[4]) : '-', touchpoint: item[5]||'N/A',
-              agent: `${item[9]||'-'} : ${item[10]||'-'}`, interviewerId: item[9]||'-', rawName: item[10]||'-',
-              supervisor: item[7]||'', supervisorFilter: item[7]||'N/A', type: item[6]||'ยังไม่ได้ตรวจ',
-              audio: item[11] ? String(item[11]).trim() : '', result: matchResult(item[12]), comment: item[13]||'',
-              evaluations: evals, timestamp: serverTimestamp()
-            };
+            norm = { month: item[2]||'N/A', date: item[3] ? String(item[3]).split('T')[0] : new Date().toISOString().split('T')[0], questionnaireNo: item[4] ? String(item[4]) : '-', touchpoint: item[5]||'N/A', agent: `${item[9]||'-'} : ${item[10]||'-'}`, interviewerId: item[9]||'-', rawName: item[10]||'-', supervisor: item[7]||'', supervisorFilter: item[7]||'N/A', type: item[6]||'ยังไม่ได้ตรวจ', audio: item[11] ? String(item[11]).trim() : '', result: matchResult(item[12]), comment: item[13]||'', evaluations: evals, timestamp: serverTimestamp(), projectId: activeProjectId };
           } else {
             const rawQNo = (getVal(item,['questionnaireNo','QuestionnaireNo'])||'').trim().replace(/\//g,'_');
-            docId = (rawQNo && rawQNo !== '-' && rawQNo.toUpperCase() !== 'N/A') ? rawQNo : doc(collection(db,"audit_cases")).id;
-            const evals = Array.isArray(item.evaluations) ? item.evaluations : Array(13).fill(0).map((_,i) => ({
-              label:`Criteria ${i+1}`, value: String(item[`P${i+1}`]||item[`Criteria ${i+1}`]||'-')
-            }));
-            norm = {
-              month: item.month||item.Month||'N/A', date: item.date||item.Date||new Date().toISOString().split('T')[0],
-              questionnaireNo: item.questionnaireNo||item.QuestionnaireNo||'-', touchpoint: item.touchpoint||item.Touchpoint||'N/A',
-              agent: item.agent||item.Agent||'Unknown', interviewerId: (item.agent||'').split(':')[0]?.trim()||'-',
-              rawName: (item.agent||'').split(':')[1]?.trim()||'-', type: item.type||item.Type||'ยังไม่ได้ตรวจ',
-              supervisor: item.supervisor||'', supervisorFilter: item.supervisorFilter||item.supervisor||'N/A',
-              result: matchResult(item.result||item.Result), comment: item.comment||item.Comment||'',
-              audio: getVal(item,['Link ไฟล์เสียง','ไฟล์เสียง','audio','Audio']),
-              evaluations: evals, timestamp: serverTimestamp()
-            };
+            const baseDocId = (rawQNo && rawQNo !== '-' && rawQNo.toUpperCase() !== 'N/A') ? rawQNo : doc(collection(db,"audit_cases")).id;
+            docId = `${activeProjectId}_${baseDocId}`;
+            const evals = Array.isArray(item.evaluations) ? item.evaluations : Array(13).fill(0).map((_,i) => ({ label:`Criteria ${i+1}`, value: String(item[`P${i+1}`]||item[`Criteria ${i+1}`]||'-') }));
+            norm = { month: item.month||item.Month||'N/A', date: item.date||item.Date||new Date().toISOString().split('T')[0], questionnaireNo: item.questionnaireNo||item.QuestionnaireNo||'-', touchpoint: item.touchpoint||item.Touchpoint||'N/A', agent: item.agent||item.Agent||'Unknown', interviewerId: (item.agent||'').split(':')[0]?.trim()||'-', rawName: (item.agent||'').split(':')[1]?.trim()||'-', type: item.type||item.Type||'ยังไม่ได้ตรวจ', supervisor: item.supervisor||'', supervisorFilter: item.supervisorFilter||item.supervisor||'N/A', result: matchResult(item.result||item.Result), comment: item.comment||item.Comment||'', audio: getVal(item,['Link ไฟล์เสียง','ไฟล์เสียง','audio','Audio']), evaluations: evals, timestamp: serverTimestamp(), projectId: activeProjectId };
           }
-          if (norm.month && norm.month !== 'N/A') {
-            uniqueMonthsInUpload.add(norm.month);
-          }
+          if (norm.month && norm.month !== 'N/A') uniqueMonthsInUpload.add(norm.month);
           return { docId, norm };
         });
-
-        // 2. Fetch existing docs from Firestore to ensure we don't overwrite evaluated data
         const docRefs = preparedItems.map(p => doc(db, "audit_cases", p.docId));
         const docSnaps = await Promise.all(docRefs.map(r => getDoc(r)));
-
-        // 3. Merge and Batch Write
         const batch = writeBatch(db);
         preparedItems.forEach((p, index) => {
           const docSnap = docSnaps[index];
@@ -715,11 +392,7 @@ export default function App() {
         });
         await batch.commit();
         total += chunk.length;
-        setImportStatus({ type: 'success', msg: `✅ Sync Complete! ${total} records.` });
-        setTimeout(() => setImportStatus(null), 5000);
       }
-
-      // Update months metadata
       if (uniqueMonthsInUpload.size > 0) {
         const monthsRef = doc(db, "metadata", "months");
         const docSnap = await getDoc(monthsRef);
@@ -727,53 +400,12 @@ export default function App() {
         const newMonths = new Set([...existingMonths, ...Array.from(uniqueMonthsInUpload)]);
         await setDoc(monthsRef, { all: Array.from(newMonths) }, { merge: true });
       }
+      showNotif('success', `✅ ดึงข้อมูลสำเร็จ (${total} รายการ) กำลังโหลดหน้าจอใหม่...`);
+      setTimeout(() => window.location.reload(), 2000);
     } catch (e) {
-      setImportStatus({ type: 'error', msg: "Upload Failed: " + e.message });
-      setTimeout(() => setImportStatus(null), 8000);
-    }
-  };
-
-  const handleBulkImport = async () => {
-    if (!importJson) { showNotif('error', "กรุณาวาง JSON Data"); return; }
-    setImportStatus({ type: 'loading', msg: 'Validating JSON...' });
-    setTimeout(async () => {
-      try { await processAndUploadData(JSON.parse(importJson)); setImportJson(''); }
-      catch (e) { setImportStatus({ type: 'error', msg: "Invalid JSON" }); }
-    }, 400);
-  };
-
-  const handleSyncFromSheet = async (fullSync = false) => {
-    if (!appsScriptUrl) { showNotif('error', "กรุณาระบุ Web App URL"); return; }
-    setImportStatus({ type: 'loading', msg: 'Fetching from Google Sheets...' });
-    try {
-      const res = await fetch(appsScriptUrl);
-      if (!res.ok) throw new Error("Fetch failed");
-      const json = await res.json();
-      let rows = Array.isArray(json) ? json : (json.data || []);
-      if (!rows.length) throw new Error("No data found in Sheet");
-      
-      // 1. แยก Header ออกมาก่อน
-      const header = rows[0];
-      let dataRows = rows.slice(1);
-
-      // 2. กรองแถวว่างทิ้ง (เช็คว่าในแถวต้องมีข้อมูลอย่างน้อย 1 ช่องที่ไม่ใช่ค่าว่าง)
-      dataRows = dataRows.filter(row => {
-        const values = Array.isArray(row) ? row : Object.values(row);
-        return values.some(val => val !== null && val !== undefined && String(val).trim() !== '');
-      });
-
-      // 3. If not a full sync and data exceeds 500 rows, take only the last 500.
-      if (!fullSync && dataRows.length > 500) {
-        dataRows = dataRows.slice(-500);
-      }
-      
-      // 4. เอา Header กลับมาต่อกับข้อมูล
-      rows = [header, ...dataRows];
-
-      await processAndUploadData(rows);
-    } catch (e) {
-      setImportStatus({ type: 'error', msg: "Sync Error: " + e.message });
-      setTimeout(() => setImportStatus(null), 5000);
+      showNotif('error', "Sync Error: " + e.message);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -782,16 +414,19 @@ export default function App() {
   // ──────────────────────────────────────────────
 
   const activeSupervisors = useMemo(() => {
-    const dbNames = supervisorsData.map(s => s.name);
-    return [...new Set([...DEFAULT_SUPERVISORS, ...dbNames])];
-  }, [supervisorsData]);
+    const dbNames = activeProject?.supervisors || [];
+    return [...new Set([...(DEFAULT_SUPERVISORS || []), ...dbNames])];
+  }, [activeProject]);
 
-  const availableSups = useMemo(() => [...new Set(data.map(d=>d.supervisorFilter).filter(Boolean).filter(s=>s!=='N/A'))].sort(), [data]);
-  const availableTypes = useMemo(() => [...new Set(data.map(d=>d.type).filter(t=>t&&t!=='N/A'))].sort(), [data]);
-  const availableTouchpoints = useMemo(() => [...new Set(data.map(d=>d.touchpoint).filter(t=>t&&t!=='N/A'))].sort(), [data]);
+  const projectData = useMemo(() => (Array.isArray(data) ? data : []).filter(d => d.projectId === activeProjectId), [data, activeProjectId]);
+  const projectDbSearchResults = useMemo(() => Array.isArray(dbSearchResults) ? dbSearchResults.filter(d => d.projectId === activeProjectId) : null, [dbSearchResults, activeProjectId]);
+
+  const availableSups = useMemo(() => [...new Set(projectData.map(d=>d.supervisorFilter).filter(Boolean).filter(s=>s!=='N/A'))].sort(), [projectData]);
+  const availableTypes = useMemo(() => [...new Set(projectData.map(d=>d.type).filter(t=>t&&t!=='N/A'))].sort(), [projectData]);
+  const availableTouchpoints = useMemo(() => [...new Set(projectData.map(d=>d.touchpoint).filter(t=>t&&t!=='N/A'))].sort(), [projectData]);
 
   const availableAgents = useMemo(() => {
-    let f = data;
+    let f = projectData;
     if (dateRange.start) f = f.filter(d => normalizeDate(d.date) >= dateRange.start);
     if (dateRange.end) f = f.filter(d => normalizeDate(d.date) <= dateRange.end);
     if (selectedSups.length) f = f.filter(d => selectedSups.includes(d.supervisorFilter));
@@ -799,11 +434,11 @@ export default function App() {
     if (selectedTypes.length) f = f.filter(d => selectedTypes.includes(d.type));
     if (selectedTouchpoints.length) f = f.filter(d => selectedTouchpoints.includes(d.touchpoint));
     return [...new Set(f.map(d=>d.agent).filter(a=>a&&a!=='Unknown'))].sort();
-  }, [data, selectedSups, selectedMonths, selectedTypes, selectedTouchpoints, dateRange]);
+  }, [projectData, selectedSups, selectedMonths, selectedTypes, selectedTouchpoints, dateRange]);
 
   const baseFilteredData = useMemo(() => {
-    const source = dbSearchResults !== null ? dbSearchResults : data;
-    return source.filter(item => {
+    const source = projectDbSearchResults !== null ? projectDbSearchResults : projectData;
+    return (source || []).filter(item => {
       const invAgent = !item.agent || item.agent === '- : -' || item.agent === 'Unknown';
       const invQNo = !item.questionnaireNo || item.questionnaireNo === '-' || item.questionnaireNo === 'N/A';
       if (invAgent && invQNo) return false;
@@ -811,7 +446,7 @@ export default function App() {
       const s = searchTerm.toLowerCase();
       if (s && !String(item.agent||'').toLowerCase().includes(s) && !String(item.questionnaireNo||'').toLowerCase().includes(s) && !String(item.rawName||'').toLowerCase().includes(s)) return false;
 
-      const isGlobalSearch = dbSearchResults !== null;
+      const isGlobalSearch = projectDbSearchResults !== null;
 
       if (!isGlobalSearch) {
         const nd = normalizeDate(item.date);
@@ -828,20 +463,20 @@ export default function App() {
       
       return true;
     });
-  }, [dbSearchResults, data, searchTerm, selectedResults, selectedSups, selectedAgents, selectedMonths, selectedTypes, selectedTouchpoints, dateRange]);
+  }, [projectDbSearchResults, projectData, searchTerm, selectedResults, selectedSups, selectedAgents, selectedMonths, selectedTypes, selectedTouchpoints, dateRange]);
 
   const finalFilteredData = useMemo(() => {
     if (!activeKpiFilter) return baseFilteredData;
     return baseFilteredData.filter(item => {
       if (activeKpiFilter === 'audited') return item.type !== 'ยังไม่ได้ตรวจ' && item.type !== 'N/A' && item.type !== '';
-      if (activeKpiFilter === 'pass') return item.result.startsWith('ดีเยี่ยม') || item.result.startsWith('ผ่านเกณฑ์');
-      if (activeKpiFilter === 'improve') return item.result.startsWith('ควรปรับปรุง');
-      if (activeKpiFilter === 'error') return item.result.startsWith('พบข้อผิดพลาด');
+      if (activeKpiFilter === 'pass') return item.result?.startsWith('ดีเยี่ยม') || item.result?.startsWith('ผ่านเกณฑ์');
+      if (activeKpiFilter === 'improve') return item.result?.startsWith('ควรปรับปรุง');
+      if (activeKpiFilter === 'error') return item.result?.startsWith('พบข้อผิดพลาด');
       return true;
     });
   }, [baseFilteredData, activeKpiFilter]);
 
-  const totalWorkByMonth = useMemo(() => selectedMonths.length === 0 ? data.length : data.filter(d=>selectedMonths.includes(d.month)).length, [data, selectedMonths]);
+  const totalWorkByMonth = useMemo(() => selectedMonths.length === 0 ? projectData.length : projectData.filter(d=>selectedMonths.includes(d.month)).length, [projectData, selectedMonths]);
   const totalAudited = useMemo(() => baseFilteredData.filter(d=>d.type&&d.type!=='ยังไม่ได้ตรวจ'&&d.type!=='N/A'&&d.type!=='').length, [baseFilteredData]);
   const passCount = useMemo(() => baseFilteredData.filter(d=>d.result?.startsWith('ดีเยี่ยม')||d.result?.startsWith('ผ่านเกณฑ์')).length, [baseFilteredData]);
   const improveCount = useMemo(() => baseFilteredData.filter(d=>d.result?.startsWith('ควรปรับปรุง')).length, [baseFilteredData]);
@@ -850,7 +485,7 @@ export default function App() {
   const agentSummary = useMemo(() => {
     const map = {};
     finalFilteredData.forEach(item => {
-      if (!map[item.agent]) { map[item.agent] = { name: item.agent, total: 0 }; RESULT_ORDER.forEach(r => map[item.agent][r] = 0); }
+      if (!map[item.agent]) { map[item.agent] = { name: item.agent, total: 0 }; (RESULT_ORDER || []).forEach(r => map[item.agent][r] = 0); }
       if (map[item.agent][item.result] !== undefined) map[item.agent][item.result]++;
       map[item.agent].total++;
     });
@@ -859,14 +494,14 @@ export default function App() {
 
   const totalSummary = useMemo(() => {
     const t = { total: 0 };
-    RESULT_ORDER.forEach(r => t[r] = 0);
-    agentSummary.forEach(a => { t.total += a.total; RESULT_ORDER.forEach(r => t[r] += (a[r]||0)); });
+    (RESULT_ORDER || []).forEach(r => t[r] = 0);
+    agentSummary.forEach(a => { t.total += a.total; (RESULT_ORDER || []).forEach(r => t[r] += (a[r]||0)); });
     return t;
   }, [agentSummary]);
 
   const chartData = useMemo(() => {
     const total = finalFilteredData.length;
-    return RESULT_ORDER.map(key => ({
+    return (RESULT_ORDER || []).map(key => ({
       name: formatResultDisplay(key), full: key,
       count: finalFilteredData.filter(d=>d.result===key).length,
       percent: total > 0 ? ((finalFilteredData.filter(d=>d.result===key).length / total)*100).toFixed(1) : 0,
@@ -875,29 +510,29 @@ export default function App() {
   }, [finalFilteredData]);
 
   const monthlyData = useMemo(() => {
-    const monthsToProcess = allAvailableMonths.length > 0 
+    const monthsToProcess = (allAvailableMonths || []).length > 0 
       ? allAvailableMonths 
-      : [...new Set(data.map(d => d.month))].filter(m=>m&&m!=='N/A').sort((a,b) => getMonthWeight(a) - getMonthWeight(b));
+      : [...new Set(projectData.map(d => d.month))].filter(m=>m&&m!=='N/A').sort((a,b) => getMonthWeight(a) - getMonthWeight(b));
     return monthsToProcess.map(month => {
-      const md = data.filter(d=>d.month===month);
+      const md = projectData.filter(d=>d.month===month);
       const total = md.length;
       const audited = md.filter(d=>d.type&&d.type!=='ยังไม่ได้ตรวจ'&&d.type!=='N/A'&&d.type!=='').length;
       return { name: month, audited, total, percent: total > 0 ? parseFloat(((audited/total)*100).toFixed(1)) : 0 };
     });
-  }, [data, allAvailableMonths]);
+  }, [projectData, allAvailableMonths]);
 
   const trendData = useMemo(() => {
     if (!activeCell.agent) return [];
-    const monthsToProcess = allAvailableMonths.length > 0 
+    const monthsToProcess = (allAvailableMonths || []).length > 0 
       ? allAvailableMonths 
-      : [...new Set(data.map(d => d.month))].filter(m=>m&&m!=='N/A').sort((a,b) => getMonthWeight(a) - getMonthWeight(b));
+      : [...new Set(projectData.map(d => d.month))].filter(m=>m&&m!=='N/A').sort((a,b) => getMonthWeight(a) - getMonthWeight(b));
     return monthsToProcess.map(month => {
-      const md = data.filter(d=>d.agent===activeCell.agent&&d.month===month);
+      const md = projectData.filter(d=>d.agent===activeCell.agent&&d.month===month);
       const total = md.length;
       const pass = md.filter(d=>d.result?.startsWith('ดีเยี่ยม')||d.result?.startsWith('ผ่านเกณฑ์')).length;
       return { name: month, total, passRate: total > 0 ? parseFloat(((pass/total)*100).toFixed(1)) : 0, passCount: pass };
     }).filter(d=>d.total>0)
-  }, [activeCell.agent, data, allAvailableMonths]);
+  }, [activeCell.agent, projectData, allAvailableMonths]);
 
   const detailLogs = useMemo(() => (activeCell.agent && activeCell.resultType)
     ? finalFilteredData.filter(d=>d.agent===activeCell.agent&&d.result===activeCell.resultType)
@@ -912,23 +547,51 @@ export default function App() {
   // ──────────────────────────────────────────────
   if (!isAuthenticated) return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Setup Modal สำหรับหน้า Login */}
+      {(showSettings || currentError) && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-800 w-full max-w-md rounded-3xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+              <h3 className="font-black text-white flex items-center gap-2"><Flame size={18} className="text-orange-500"/> Firebase Setup</h3>
+              <button onClick={()=>{setShowSettings(false);clearError();}} className="p-2 hover:bg-slate-700 rounded-xl transition"><X size={18} className="text-slate-400"/></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400 font-semibold">
+                กรุณาตั้งค่า Firebase Config ก่อนเข้าสู่ระบบ
+              </div>
+              <textarea className="w-full h-36 p-4 bg-slate-900 text-green-400 font-mono text-xs rounded-xl resize-none outline-none focus:ring-2 focus:ring-indigo-500 border border-slate-700"
+                value={firebaseConfigStr} onChange={e=>setFirebaseConfigStr(e.target.value)} placeholder="วาง JSON Config..." />
+              <button onClick={handleSaveFirebaseConfig} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-sm transition">SAVE & RECONNECT</button>
+              {currentError && <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs font-semibold whitespace-pre-wrap">{String(currentError?.message || currentError)}</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-600/20 rounded-full blur-3xl" />
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
       </div>
+      <button onClick={() => setShowSettings(true)} className="absolute top-6 right-6 p-3 bg-slate-800/50 border border-slate-700 rounded-xl text-slate-400 hover:text-white transition z-50">
+        <Settings size={20} />
+      </button>
       <div className="w-full max-w-[380px] relative z-10">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 shadow-2xl shadow-indigo-600/40 mb-6">
             <Activity size={28} className="text-white" />
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight">QC Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">CATI CES 2026 · Firebase Edition</p>
+          <p className="text-slate-400 text-sm mt-1">{activeProject?.name || 'Loading...'} · Firebase Edition</p>
         </div>
         <div className="bg-slate-800/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 shadow-2xl">
           <form onSubmit={async (e) => {
             e.preventDefault();
-            if (!auth) return;
+            if (!auth || currentError) {
+              setLoginError('ไม่สามารถเชื่อมต่อ Firebase ได้ กรุณาตั้งค่า Config');
+              setShowSettings(true);
+              return;
+            }
             setLoginError('');
             try {
               await signInWithEmailAndPassword(auth, inputUser, inputPass);
@@ -965,6 +628,46 @@ export default function App() {
     </div>
   );
 
+  if (isLoadingProjects || (isAuthenticated && !hasCheckedProjects)) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <Loader2 className="animate-spin text-white" size={32} />
+      </div>
+    );
+  }
+
+  if (needsProjectSelection) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <Logo />
+            <h1 className="text-2xl font-black text-white tracking-tight mt-6">เลือกโปรเจกต์</h1>
+            <p className="text-slate-400 text-sm mt-1">กรุณาเลือกโปรเจกต์ที่ต้องการเข้าใช้งาน</p>
+          </div>
+          <div className="bg-slate-800/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-2xl space-y-3 max-h-[60vh] overflow-y-auto">
+            {projects.map(proj => (
+              <button 
+                key={proj.id} 
+                type="button"
+                onClick={() => handleSelectProject(proj.id)}
+                className="w-full text-left flex items-center gap-4 p-4 rounded-xl bg-slate-700/50 border border-slate-600 hover:bg-slate-700 hover:border-indigo-500 transition-all"
+              >
+                <div className="w-10 h-10 rounded-lg bg-slate-600 flex items-center justify-center">
+                  <FolderOpen size={18} className="text-slate-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-white">{proj.name}</p>
+                  <p className="text-xs text-slate-400 font-semibold">{proj.id}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ──────────────────────────────────────────────
   // MAIN DASHBOARD
   // ──────────────────────────────────────────────
@@ -984,407 +687,30 @@ export default function App() {
 
       {/* Startup Month Selector Modal */}
       {showMonthSelector && (
-        <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center">
-            <div className="w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Calendar size={24} className="text-indigo-500"/>
-            </div>
-            <h3 className="text-lg font-black text-slate-800 mb-2">เลือกเดือนที่ต้องการทำงาน</h3>
-            <p className="text-sm text-slate-500 mb-6 leading-relaxed">
-                เพื่อเพิ่มความเร็วในการโหลดข้อมูล กรุณาเลือกเดือนที่ต้องการดูข้อมูลเป็นหลัก
-            </p>
-            {allAvailableMonths.length > 0 ? (
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2 justify-center max-h-48 overflow-y-auto p-1">
-                  {allAvailableMonths.map(m => (
-                    <button
-                      key={m}
-                      onClick={() => setSelectedStartupMonths(prev => 
-                        prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
-                      )}
-                      className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
-                        selectedStartupMonths.includes(m)
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
-                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-slate-400">กรุณาเลือกเดือนเพื่อดึงข้อมูล (เพื่อประหยัดโควต้าการอ่านข้อมูล)</p>
-                <button onClick={() => {
-                  setSelectedMonths(selectedStartupMonths);
-                  setShowMonthSelector(false);
-                }} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-sm tracking-wider transition-all shadow-lg shadow-indigo-900/40 active:scale-[0.98]">
-                  ยืนยันและเริ่มใช้งาน
-                </button>
-              </div>
-            ) : <div className="text-sm text-slate-400">Loading available months...</div>}
-          </div>
-        </div>
-      )}
-
-      {/* Clear Confirm Modal */}
-      {showClearConfirm && (
-        <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center">
-            <div className="w-14 h-14 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-4"><Trash2 size={24} className="text-rose-500"/></div>
-            <h3 className="text-lg font-black text-slate-800 mb-2">ยืนยันการลบ?</h3>
-            <p className="text-sm text-slate-500 mb-6 leading-relaxed">ข้อมูลทั้งหมดจะถูกลบ <span className="text-rose-500 font-bold">ไม่สามารถกู้คืนได้</span></p>
-            <div className="flex gap-3">
-              <button onClick={()=>setShowClearConfirm(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition">ยกเลิก</button>
-              <button onClick={executeClearDatabase} className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-bold text-sm hover:bg-rose-700 transition shadow-lg">ยืนยัน</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Settings Modal */}
-      {(showSettings || error) && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
-              <h3 className="font-black text-slate-800 flex items-center gap-2"><Flame size={18} className="text-orange-500"/> Firebase Setup</h3>
-              {db && <button onClick={()=>{setShowSettings(false);setError(null);}} className="p-2 hover:bg-slate-100 rounded-xl transition"><X size={18} className="text-slate-400"/></button>}
-            </div>
-            {/* Tabs */}
-            <div className="flex gap-1 mx-8 mt-6 mb-4 bg-slate-100 p-1 rounded-xl flex-shrink-0">
-              {[['config','⚙️ Config'],['sync','🔄 Sync Sheet'],['import','📤 Import JSON'],['supervisors','👥 Supervisors']].map(([mode,label]) => (
-                <button key={mode} onClick={()=>setImportMode(mode)}
-                  className={`flex-1 py-2 text-[10px] font-black rounded-lg transition ${importMode===mode ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>{label}</button>
-              ))}
-            </div>
-            <div className="flex-1 overflow-y-auto px-8 pb-8 space-y-4">
-              {importMode === 'config' && <>
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-700 font-semibold">⚠️ วาง Firebase Config JSON ที่นี่</div>
-                <textarea className="w-full h-36 p-4 bg-slate-800 text-green-400 font-mono text-xs rounded-xl resize-none outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={firebaseConfigStr} onChange={e=>setFirebaseConfigStr(e.target.value)} />
-                <button onClick={handleSaveFirebaseConfig} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm">SAVE & RECONNECT</button>
-                {error && <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-600 text-xs font-semibold whitespace-pre-wrap leading-relaxed">{error}</div>}
-                {userRole==='Admin' && (
-                  <div className="border-t border-slate-100 pt-6 space-y-3">
-                    <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest flex items-center gap-1"><AlertOctagon size={12}/> Danger Zone</p>
-                    <div className="flex items-center justify-between p-4 bg-rose-50 border border-rose-100 rounded-2xl">
-                      <div><p className="text-xs font-black text-rose-800">Clear All Data</p><p className="text-[10px] text-rose-400 mt-0.5">ล้างข้อมูลทั้งหมดใน Firestore</p></div>
-                      <button onClick={()=>setShowClearConfirm(true)} className="px-5 py-2.5 bg-white border border-rose-200 hover:bg-rose-600 hover:text-white text-rose-600 rounded-xl text-[10px] font-black transition flex items-center gap-1.5"><Trash2 size={12}/> Clear</button>
-                    </div>
-                    {importStatus && <p className={`text-xs font-bold text-center ${importStatus.type==='error'?'text-rose-500':'text-emerald-600'}`}>{importStatus.msg}</p>}
-                  </div>
-                )}
-              </>}
-              {importMode === 'sync' && <>
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-700 font-semibold flex items-center gap-2"><Cloud size={14}/> Sync จาก Google Sheets → Firebase</div>
-                <div>
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Apps Script Web App URL</label>
-                  <input type="text" value={appsScriptUrl} onChange={e=>{setAppsScriptUrl(e.target.value);try{localStorage.setItem('apps_script_url',e.target.value);}catch(e){}}}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
-                    placeholder="https://script.google.com/..." />
-                </div>
-                {importStatus && (
-                  <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${importStatus.type==='error'?'bg-rose-50 text-rose-600':importStatus.type==='success'?'bg-emerald-50 text-emerald-600':'bg-slate-100 text-slate-600'}`}>
-                    {importStatus.type==='loading' && <Loader2 className="animate-spin shrink-0" size={13}/>}{importStatus.msg}
-                  </div>
-                )}
-                <button onClick={() => handleSyncFromSheet(false)} disabled={importStatus?.type==='loading'}
-                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl font-black flex items-center justify-center gap-2 transition shadow-lg">
-                  <RefreshCw size={15} className={importStatus?.type==='loading'?'animate-spin':''}/> SYNC LAST 500 ROWS
-                </button>
-                {userRole === 'Admin' && (
-                  <button onClick={() => handleSyncFromSheet(true)} disabled={importStatus?.type==='loading'}
-                    className="w-full py-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-2xl font-black flex items-center justify-center gap-2 transition shadow-lg">
-                    <Database size={15}/> SYNC ALL DATA
-                  </button>
-                )}
-              </>}
-              {importMode === 'import' && <>
-                <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs text-indigo-700 font-semibold flex items-center gap-2"><Upload size={14}/> Manual JSON Import</div>
-                <textarea className="w-full h-36 p-4 bg-white border border-slate-200 text-slate-700 font-mono text-[10px] rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                  placeholder='[{"month":"JAN", "agent": "001 : ชื่อ", "result": "ดีเยี่ยม..."}]'
-                  value={importJson} onChange={e=>setImportJson(e.target.value)} />
-                {importStatus && (
-                  <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${importStatus.type==='error'?'bg-rose-50 text-rose-600':importStatus.type==='success'?'bg-emerald-50 text-emerald-600':'bg-slate-100 text-slate-600'}`}>
-                    {importStatus.type==='loading' && <Loader2 className="animate-spin shrink-0" size={13}/>}{importStatus.msg}
-                  </div>
-                )}
-                <button onClick={handleBulkImport} disabled={importStatus?.type==='loading'}
-                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl font-black flex items-center justify-center gap-2 transition">
-                  <FileJson size={15}/> UPLOAD TO FIREBASE
-                </button>
-              </>}
-              {importMode === 'supervisors' && <>
-                <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-700 font-semibold flex items-center gap-2"><Users size={14}/> จัดการรายชื่อ Supervisor</div>
-                <div className="flex gap-2">
-                  <input type="text" value={newSupervisor} onChange={e=>setNewSupervisor(e.target.value)}
-                    placeholder="พิมพ์ชื่อ Supervisor ใหม่..."
-                    className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-purple-500" />
-                  <button onClick={handleAddSupervisor} disabled={!newSupervisor.trim()}
-                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl font-black transition shadow-lg">
-                    เพิ่ม
-                  </button>
-                </div>
-                <div className="space-y-2 mt-4">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">รายชื่อปัจจุบัน</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
-                    {activeSupervisors.map(sup => {
-                      const dbSup = supervisorsData.find(s => s.name === sup);
-                      const isDefault = DEFAULT_SUPERVISORS.includes(sup);
-                      return (
-                        <div key={sup} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
-                          <span className="text-xs font-bold text-slate-700">{sup}</span>
-                          {dbSup && !isDefault && (
-                            <button onClick={() => handleDeleteSupervisor(dbSup.id, sup)} className="p-2 hover:bg-rose-100 text-rose-500 rounded-lg transition" title="ลบ Supervisor"><Trash2 size={14}/></button>
-                          )}
-                          {isDefault && <span className="text-[9px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded-md">Default</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </>}
-            </div>
-          </div>
-        </div>
+        <MonthSelectorModal
+          allAvailableMonths={allAvailableMonths || []}
+          selectedStartupMonths={selectedStartupMonths}
+          setSelectedStartupMonths={setSelectedStartupMonths}
+          setSelectedMonths={setSelectedMonths}
+          setShowMonthSelector={setShowMonthSelector}
+          loading={loading}
+        />
       )}
 
       {/* ── HOTSHEET MODAL ── */}
       {showHotsheetModal && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh]">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center">
-                  <FolderOpen size={20} className="text-orange-600"/>
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-800 text-lg tracking-tight">Hotsheet Download</h3>
-                  <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 mt-0.5 uppercase tracking-wide">
-                    {hotsheetPath.split('/').map((p, i, arr) => (
-                      <span key={i} className="flex items-center gap-1.5">
-                        {i > 0 && <ChevronRight size={10} className="text-slate-300"/>}
-                        <span className={`px-1.5 py-0.5 rounded ${i === arr.length - 1 ? 'bg-slate-200 text-slate-700' : 'cursor-pointer hover:bg-orange-100 hover:text-orange-600 transition'}`}
-                          onClick={() => setHotsheetPath(arr.slice(0, i + 1).join('/'))}>
-                          {p}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setShowHotsheetModal(false)} className="p-2 hover:bg-rose-100 hover:text-rose-600 rounded-xl transition text-slate-400">
-                <X size={20}/>
-              </button>
-            </div>
-
-            {/* Toolbar (Back & Filter) */}
-            <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 h-14">
-              {hotsheetPath !== 'Hotsheet' ? (
-                <button onClick={() => {
-                  const parts = hotsheetPath.split('/');
-                  parts.pop();
-                  setHotsheetPath(parts.join('/'));
-                }} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-black text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition uppercase border border-slate-200">
-                  <ChevronLeft size={14}/> Back
-                </button>
-              ) : <div/>}
-
-              {hotsheetAvailableMonths.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-lg">
-                    <Calendar size={13} className="text-indigo-500"/>
-                    <select value={selectedHotsheetMonth} onChange={e => setSelectedHotsheetMonth(e.target.value)}
-                      className="bg-transparent text-[11px] font-black text-indigo-700 outline-none cursor-pointer uppercase tracking-wider appearance-none pr-2">
-                      <option value="">ALL MONTHS</option>
-                      {hotsheetAvailableMonths.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
-              {hotsheetLoading ? (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
-                  <Loader2 size={30} className="animate-spin text-orange-500"/>
-                  <p className="text-xs font-black tracking-widest uppercase">Loading Storage...</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Folders */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {hotsheetFolders.map(folder => (
-                      <div key={folder} onClick={() => setHotsheetPath(`${hotsheetPath}/${folder}`)}
-                        className="flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-orange-300 hover:bg-orange-50 hover:shadow-md transition-all group">
-                        <FolderOpen size={24} className="text-orange-400 group-hover:text-orange-600"/>
-                        <span className="font-black text-slate-700 text-sm group-hover:text-orange-700">{folder}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {hotsheetFolders.length > 0 && filteredHotsheetFiles.length > 0 && <hr className="border-slate-200 my-6" />}
-
-                  {/* Files */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {filteredHotsheetFiles.map(file => {
-                      const match = file.name.match(/_(\d{2})(\d{2})(\d{4})\./);
-                      let dateLabel = '';
-                      if (match) dateLabel = `Date: ${match[2]}/${match[1]}/${match[3]}`;
-
-                      return (
-                        <div key={file.name} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-emerald-300 hover:shadow-md transition-all group">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-                              <FileSpreadsheet size={18} className="text-emerald-600"/>
-                            </div>
-                            <div className="truncate pr-4">
-                              <p className="font-bold text-slate-700 text-xs truncate group-hover:text-emerald-600 transition-colors" title={file.name}>{file.name}</p>
-                              <p className="text-[9px] text-slate-400 font-black tracking-wider uppercase mt-1">{dateLabel || 'Excel Document'}</p>
-                            </div>
-                          </div>
-                          <button onClick={() => downloadHotsheetFile(file.fullPath, file.url, file.name)}
-                            className="shrink-0 flex items-center justify-center w-10 h-10 bg-slate-50 hover:bg-emerald-500 hover:text-white text-slate-400 rounded-xl transition border border-slate-200 hover:border-emerald-500">
-                            <DownloadCloud size={16}/>
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {!hotsheetFolders.length && !filteredHotsheetFiles.length && (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-300 gap-2">
-                      <FolderOpen size={48} className="mb-2"/>
-                      <p className="font-black text-sm uppercase tracking-widest">โฟลเดอร์ว่างเปล่า</p>
-                      <p className="text-xs font-semibold">ไม่พบไฟล์ Hotsheet ในเงื่อนไขที่เลือก</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── HOTSHEET MODAL ── */}
-      {showHotsheetModal && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh]">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center">
-                  <FolderOpen size={20} className="text-orange-600"/>
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-800 text-lg tracking-tight">Hotsheet Download</h3>
-                  <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 mt-0.5 uppercase tracking-wide">
-                    {hotsheetPath.split('/').map((p, i, arr) => (
-                      <span key={i} className="flex items-center gap-1.5">
-                        {i > 0 && <ChevronRight size={10} className="text-slate-300"/>}
-                        <span className={`px-1.5 py-0.5 rounded ${i === arr.length - 1 ? 'bg-slate-200 text-slate-700' : 'cursor-pointer hover:bg-orange-100 hover:text-orange-600 transition'}`}
-                          onClick={() => setHotsheetPath(arr.slice(0, i + 1).join('/'))}>
-                          {p}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setShowHotsheetModal(false)} className="p-2 hover:bg-rose-100 hover:text-rose-600 rounded-xl transition text-slate-400">
-                <X size={20}/>
-              </button>
-            </div>
-
-            {/* Toolbar (Back & Filter) */}
-            <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 h-14">
-              {hotsheetPath !== 'Hotsheet' ? (
-                <button onClick={() => {
-                  const parts = hotsheetPath.split('/');
-                  parts.pop();
-                  setHotsheetPath(parts.join('/'));
-                }} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-black text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition uppercase border border-slate-200">
-                  <ChevronLeft size={14}/> Back
-                </button>
-              ) : <div/>}
-
-              {hotsheetAvailableMonths.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-lg">
-                    <Calendar size={13} className="text-indigo-500"/>
-                    <select value={selectedHotsheetMonth} onChange={e => setSelectedHotsheetMonth(e.target.value)}
-                      className="bg-transparent text-[11px] font-black text-indigo-700 outline-none cursor-pointer uppercase tracking-wider appearance-none pr-2">
-                      <option value="">ALL MONTHS</option>
-                      {hotsheetAvailableMonths.map(m => <option key={m} value={m}>เดือน {m}</option>)}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
-              {hotsheetLoading ? (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
-                  <Loader2 size={30} className="animate-spin text-orange-500"/>
-                  <p className="text-xs font-black tracking-widest uppercase">Loading Storage...</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Folders */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {hotsheetFolders.map(folder => (
-                      <div key={folder} onClick={() => setHotsheetPath(`${hotsheetPath}/${folder}`)}
-                        className="flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-orange-300 hover:bg-orange-50 hover:shadow-md transition-all group">
-                        <FolderOpen size={24} className="text-orange-400 group-hover:text-orange-600"/>
-                        <span className="font-black text-slate-700 text-sm group-hover:text-orange-700">{folder}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {hotsheetFolders.length > 0 && filteredHotsheetFiles.length > 0 && <hr className="border-slate-200 my-6" />}
-
-                  {/* Files */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {filteredHotsheetFiles.map(file => {
-                      const match = file.name.match(/_(\d{2})(\d{2})(\d{4})\./);
-                      let dateLabel = '';
-                      if (match) dateLabel = `Date: ${match[2]}/${match[1]}/${match[3]}`;
-
-                      return (
-                        <div key={file.name} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-emerald-300 hover:shadow-md transition-all group">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-                              <FileSpreadsheet size={18} className="text-emerald-600"/>
-                            </div>
-                            <div className="truncate pr-4">
-                              <p className="font-bold text-slate-700 text-xs truncate group-hover:text-emerald-600 transition-colors" title={file.name}>{file.name}</p>
-                              <p className="text-[9px] text-slate-400 font-black tracking-wider uppercase mt-1">{dateLabel || 'Excel Document'}</p>
-                            </div>
-                          </div>
-                          <button onClick={() => downloadHotsheetFile(file.fullPath, file.url, file.name)}
-                            className="shrink-0 flex items-center justify-center w-10 h-10 bg-slate-50 hover:bg-emerald-500 hover:text-white text-slate-400 rounded-xl transition border border-slate-200 hover:border-emerald-500">
-                            <DownloadCloud size={16}/>
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {!hotsheetFolders.length && !filteredHotsheetFiles.length && (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-300 gap-2">
-                      <FolderOpen size={48} className="mb-2"/>
-                      <p className="font-black text-sm uppercase tracking-widest">โฟลเดอร์ว่างเปล่า</p>
-                      <p className="text-xs font-semibold">ไม่พบไฟล์ Hotsheet ในเงื่อนไขที่เลือก</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <HotsheetModal
+          hotsheetPath={hotsheetPath}
+          setHotsheetPath={setHotsheetPath}
+          hotsheetAvailableMonths={hotsheetAvailableMonths}
+          selectedHotsheetMonth={selectedHotsheetMonth}
+          setSelectedHotsheetMonth={setSelectedHotsheetMonth}
+          hotsheetLoading={hotsheetLoading}
+          hotsheetFolders={hotsheetFolders}
+          filteredHotsheetFiles={filteredHotsheetFiles}
+          downloadHotsheetFile={downloadHotsheetFile}
+          setShowHotsheetModal={setShowHotsheetModal}
+        />
       )}
 
       {/* Filter Sidebar */}
@@ -1430,12 +756,15 @@ export default function App() {
             <div className="hidden sm:block w-px h-8 bg-slate-200" />
             <div>
               <h1 className="font-black text-slate-800 text-lg tracking-tight flex items-center gap-2">
-                QC Report V5.5
+                QC Report {activeProject?.name ? `: ${activeProject.name}` : ''}
+                <button onClick={() => setNeedsProjectSelection(true)} className="ml-2 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg text-[10px] font-black uppercase tracking-wider transition border border-slate-200">
+                  เปลี่ยน
+                </button>
                 {loading && <RefreshCw size={14} className="animate-spin text-indigo-500" />}
               </h1>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] text-slate-400 font-semibold">LIVE · {data.length} รายการ</span>
+                <span className="text-[10px] text-slate-400 font-semibold">LIVE · {projectData.length} รายการ</span>
               </div>
             </div>
           </div>
@@ -1449,17 +778,20 @@ export default function App() {
               </button>
             )}
 
-            {['Admin','QC','Gallup'].includes(userRole) && (
-              <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black border bg-sky-50 border-sky-200 text-sky-600 hover:bg-sky-100 transition">
-                <Download size={13}/> Export CSV
+            {userRole === 'Admin' && (
+              <button onClick={() => navigate('/dashboard')} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black border bg-fuchsia-50 border-fuchsia-200 text-fuchsia-600 hover:bg-fuchsia-100 transition">
+                <BarChart2 size={13}/> Dashboard
               </button>
             )}
-            {['Admin','QC'].includes(userRole) && (
-              <button onClick={handleSyncFromSheet} disabled={importStatus?.type==='loading'}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black border transition
-                  ${importStatus?.type==='loading' ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'}`}>
-                <RefreshCw size={13} className={importStatus?.type==='loading'?'animate-spin':''}/> 
-                {importStatus?.type==='loading' ? 'Syncing...' : 'Sync Sheet'}
+            {['admin','qc'].includes(String(userRole).toLowerCase()) && (
+              <button onClick={handleQuickSync} disabled={isSyncing} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black border bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 transition disabled:opacity-50 shadow-sm">
+                <RefreshCw size={13} className={isSyncing ? "animate-spin" : ""}/> 
+                {isSyncing ? 'กำลังดึงข้อมูล...' : 'Sync (500)'}
+              </button>
+            )}
+            {['admin','qc','gallup','gullup'].includes(String(userRole).toLowerCase()) && (
+              <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black border bg-sky-50 border-sky-200 text-sky-600 hover:bg-sky-100 transition">
+                <Download size={13}/> Export CSV
               </button>
             )}
             <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black border bg-indigo-50 border-indigo-200 text-indigo-600">
@@ -1471,17 +803,25 @@ export default function App() {
               <Filter size={13}/> ตัวกรอง {hasActiveFilters ? '●' : ''}
             </button>
             {userRole==='Admin' && (
-              <button onClick={()=>setShowSettings(true)} className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black transition">
-                <Settings size={13}/> ตั้งค่า
+              <button onClick={() => navigate('/admin')} className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition shadow-lg shadow-rose-900/20">
+                <Shield size={13}/> จัดการระบบกลาง
               </button>
             )}
-            <button onClick={() => auth && signOut(auth)} className="p-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-500 rounded-xl transition">
+            <div className="hidden sm:flex flex-col items-end justify-center ml-2 border-l border-slate-200 pl-4">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Logged in as</span>
+              <span className="text-xs font-bold text-slate-700">{auth?.currentUser?.email || userRole || 'Unknown'}</span>
+            </div>
+            <button onClick={() => {
+              if(auth) signOut(auth);
+              try{ localStorage.removeItem('active_project_id'); } catch(e){}
+              setActiveProjectId('');
+            }} className="p-2 bg-slate-50 border border-slate-200 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-500 text-slate-500 rounded-xl transition" title="ออกจากระบบ">
               <User size={15}/>
             </button>
           </div>
         </header>
 
-        {loading && data.length === 0 ? (
+        {loading && projectData.length === 0 ? (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 animate-pulse">
               {[1, 2, 3, 4, 5].map(i => <div key={i} className="bg-slate-200/70 rounded-2xl h-[104px]"></div>)}
@@ -1605,7 +945,7 @@ export default function App() {
               <thead className="sticky top-0 z-20 bg-white shadow-sm">
                 <tr>
                   <th className="sticky left-0 z-30 px-6 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-r border-slate-100 bg-white min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Interviewer</th>
-                  {RESULT_ORDER.map(type => (
+                  {(RESULT_ORDER || []).map(type => (
                     <th key={type} className="px-3 py-3 text-center text-[10px] font-black border-b border-slate-100 bg-slate-50 max-w-[120px]">
                       <span className="line-clamp-2 leading-tight" style={{color:getResultColor(type)}}>{formatResultDisplay(type)}</span>
                     </th>
@@ -1617,7 +957,7 @@ export default function App() {
                 {agentSummary.map((agent,i) => (
                   <tr key={i} className="hover:bg-slate-50 transition-colors group">
                     <td className="sticky left-0 z-10 px-6 py-3.5 font-bold text-[13px] text-slate-700 border-r border-slate-100 bg-white group-hover:bg-slate-50 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{agent.name}</td>
-                    {RESULT_ORDER.map(type => {
+                    {(RESULT_ORDER || []).map(type => {
                       const val = agent[type];
                       const isActive = activeCell.agent===agent.name && activeCell.resultType===type;
                       return (
@@ -1641,7 +981,7 @@ export default function App() {
                 ))}
                 <tr className="bg-slate-100 border-t-2 border-slate-200 font-black">
                   <td className="sticky left-0 z-10 px-6 py-4 text-indigo-600 font-black text-[13px] uppercase border-r border-slate-200 bg-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">GRAND TOTAL</td>
-                  {RESULT_ORDER.map(type => {
+                  {(RESULT_ORDER || []).map(type => {
                     const val = totalSummary[type];
                     return (
                       <td key={type} className="px-3 py-4 text-center border-r border-slate-200">
@@ -1789,7 +1129,7 @@ export default function App() {
                                   <p className="text-[10px] text-slate-400 mt-0.5">{isNew?'กรุณากรอกคะแนนและผลสรุปเพื่อบันทึก':'แก้ไขผลการตรวจ'}</p>
                                 </div>
                               </div>
-                              {['Admin','QC','Gallup'].includes(userRole) ? (
+                              {['admin','qc','gallup','gullup'].includes(String(userRole).toLowerCase()) ? (
                                 !isEditing
                                   ? <button onClick={e=>{e.stopPropagation();setEditingCase({...item});}}
                                       className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase border transition
@@ -1875,7 +1215,7 @@ export default function App() {
                                 ? <div className="relative">
                                     <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
                                       value={editingCase.result} onChange={e=>setEditingCase({...editingCase,result:e.target.value})}>
-                                      {RESULT_ORDER.map(o=><option key={o} value={o}>{o}</option>)}
+                                {(RESULT_ORDER || []).map(o=><option key={o} value={o}>{o}</option>)}
                                     </select>
                                     <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
                                   </div>
@@ -1888,10 +1228,10 @@ export default function App() {
                               <div className="mb-5 p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl" onClick={e=>e.stopPropagation()}>
                                 <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3 flex items-center gap-1"><CheckSquare size={12}/> ประเมินผล (Criteria 1-13)</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                  {editingCase.evaluations.map((e,i) => (
-                                    <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col justify-between" title={CRITERIA_DESCRIPTIONS[i] || e.label}>
-                                      <p className="text-[10px] font-bold text-slate-600 mb-2 line-clamp-2 leading-tight" title={CRITERIA_DESCRIPTIONS[i] || e.label}>
-                                        {CRITERIA_DESCRIPTIONS[i] || e.label}
+                                  {(editingCase.evaluations || []).map((e,i) => (
+                                    <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col justify-between" title={(CRITERIA_DESCRIPTIONS || [])[i] || e.label}>
+                                      <p className="text-[10px] font-bold text-slate-600 mb-2 line-clamp-2 leading-tight" title={(CRITERIA_DESCRIPTIONS || [])[i] || e.label}>
+                                        {(CRITERIA_DESCRIPTIONS || [])[i] || e.label}
                                       </p>
                                       <div className="relative mt-auto">
                                         <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
@@ -1900,7 +1240,7 @@ export default function App() {
                                             newEvals[i].value = event.target.value;
                                             setEditingCase({...editingCase, evaluations: newEvals});
                                           }}>
-                                          {Object.keys(SCORE_LABELS).map(k => <option key={k} value={k}>{SCORE_LABELS[k]}</option>)}
+                                          {Object.keys(SCORE_LABELS || {}).map(k => <option key={k} value={k}>{(SCORE_LABELS || {})[k]}</option>)}
                                         </select>
                                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
                                       </div>
@@ -1910,11 +1250,11 @@ export default function App() {
                               </div>
                             ) : (
                               <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-2 mb-5">
-                                {item.evaluations.map((e,i) => (
-                                  <div key={i} className="bg-white border border-slate-200 rounded-xl p-2.5" title={CRITERIA_DESCRIPTIONS[i] || e.label}>
+                                {(item.evaluations || []).map((e,i) => (
+                                  <div key={i} className="bg-white border border-slate-200 rounded-xl p-2.5" title={(CRITERIA_DESCRIPTIONS || [])[i] || e.label}>
                                     <p className="text-[9px] font-black text-slate-400 uppercase truncate mb-1.5">{e.label}</p>
                                     <span className={`text-xs font-black ${e.value==='5'||e.value==='4'?'text-emerald-500':e.value==='1'||e.value==='2'?'text-rose-500':'text-slate-300'}`}>
-                                      {SCORE_LABELS[e.value]||e.value}
+                                      {(SCORE_LABELS || {})[e.value]||e.value}
                                     </span>
                                   </div>
                                 ))}
