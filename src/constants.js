@@ -1,13 +1,13 @@
 export const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyACA30Lms1pRejuA2FdtYDYDSe8fD2lNB8",
-  authDomain: "test-qc-a33b6.firebaseapp.com",
-  projectId: "test-qc-a33b6",
-  storageBucket: "test-qc-a33b6.firebasestorage.app",
-  messagingSenderId: "647004289726",
-  appId: "1:647004289726:web:f60202a45d6ef961eebcef"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwIZCWN9z0IfAvJp-Q0GUnLq9OJRp6fkzR9DRLFu5lzOkZkaXIClwqod0vvreiBSBUoMA/exec";
+export const DEFAULT_SCRIPT_URL = import.meta.env.VITE_DEFAULT_SCRIPT_URL || '';
 
 export const RESULT_ORDER = [
   'ดีเยี่ยม: ครบถ้วนตามมาตรฐาน (พนักงานทำได้ดีทุกข้อ น้ำเสียงเป็นมืออาชีพ ข้อมูลแม่นยำ 100%)',
