@@ -558,7 +558,7 @@ export default function App() {
   // LOGIN SCREEN
   // ──────────────────────────────────────────────
   if (!isAuthenticated) return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F8F9FA] to-[#E2E8F0] flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen flex overflow-hidden">
       <style>{ANIMATION_STYLES}</style>
       {/* Setup Modal สำหรับหน้า Login */}
       {(showSettings || currentError) && (
@@ -581,61 +581,97 @@ export default function App() {
         </div>
       )}
 
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#842327]/15 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#D32F2F]/15 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#842327]/20 to-transparent" />
-      </div>
-      <button onClick={() => setShowSettings(true)} className="absolute top-6 right-6 p-3 bg-white/50 backdrop-blur-md border border-white rounded-xl text-[#85929E] hover:text-[#2C3E50] hover:shadow-lg transition-all z-50 shadow-sm">
-        <Settings size={20} />
-      </button>
-      <div className="w-full max-w-[380px] relative z-10">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#842327] shadow-xl shadow-[#842327]/30 mb-6">
-            <Activity size={28} className="text-white" />
+      {/* ── Left Branded Panel ── */}
+      <div className="hidden lg:flex w-5/12 xl:w-[480px] bg-gradient-to-br from-[#2C0A0C] via-[#6B1A1E] to-[#B52428] flex-col justify-between p-12 relative overflow-hidden shrink-0">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-white/[0.04] rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -left-20 w-[500px] h-[500px] bg-black/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] border border-white/[0.03] rounded-full pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border border-white/[0.04] rounded-full pointer-events-none" />
+
+        {/* Logo top */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20 shadow-lg shadow-black/20">
+              <Activity size={22} className="text-white" />
+            </div>
+            <div>
+              <div className="text-white font-black text-base tracking-widest uppercase leading-none">INTAGE</div>
+              <div className="text-white/40 text-[10px] font-semibold tracking-widest uppercase mt-0.5">Quality Control</div>
+            </div>
           </div>
-          <h1 className="text-2xl font-black text-[#2C3E50] tracking-tight">QC Dashboard</h1>
-          <p className="text-[#85929E] text-sm mt-1">{activeProject?.name || 'Loading...'}</p>
         </div>
-        <div className="bg-white/70 backdrop-blur-xl border border-white rounded-3xl p-8 shadow-2xl hover:shadow-[#842327]/5 transition-shadow duration-500">
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            if (!auth || currentError) {
-              setLoginError('ไม่สามารถเชื่อมต่อ Firebase ได้ กรุณาตั้งค่า Config');
-              setShowSettings(true);
-              return;
-            }
-            setLoginError('');
-            try {
-              await signInWithEmailAndPassword(auth, inputUser, inputPass);
-            } catch (error) {
-              if (error.code === 'auth/invalid-email') setLoginError('รูปแบบอีเมลไม่ถูกต้อง');
-              else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') setLoginError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
-              else setLoginError('เกิดข้อผิดพลาด: ' + error.message);
-            }
-          }} className="space-y-5">
-            <div>
-              <label className="block text-[10px] font-black text-[#85929E] uppercase tracking-widest mb-2">Email</label>
-              <input type="text" value={inputUser} onChange={e=>{setInputUser(e.target.value);setLoginError('');}}
-                className="w-full px-4 py-3 bg-[#F8F9FA] border border-slate-200 rounded-xl text-[#2C3E50] text-sm font-semibold outline-none focus:border-[#842327] focus:ring-1 focus:ring-[#842327]/50 transition-all placeholder:text-[#85929E]"
-                placeholder="Enter email" />
+
+        {/* Center hero text */}
+        <div className="relative z-10 space-y-8">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 border border-white/15 rounded-full mb-6">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#28A745] shadow-[0_0_6px_rgba(40,167,69,0.8)] animate-pulse" />
+              <span className="text-white/70 text-[10px] font-black uppercase tracking-widest">Live System</span>
             </div>
-            <div>
-              <label className="block text-[10px] font-black text-[#85929E] uppercase tracking-widest mb-2">Password</label>
-              <input type="password" value={inputPass} onChange={e=>{setInputPass(e.target.value);setLoginError('');}}
-                className="w-full px-4 py-3 bg-[#F8F9FA] border border-slate-200 rounded-xl text-[#2C3E50] text-sm font-semibold outline-none focus:border-[#842327] focus:ring-1 focus:ring-[#842327]/50 transition-all placeholder:text-[#85929E]"
-                placeholder="••••••••" />
+            <h1 className="text-5xl font-black text-white leading-[1.1] tracking-tight">QC<br/>Dashboard</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Right Login Panel ── */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-[#FAFAFA] relative min-h-screen">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(132,35,39,0.07),rgba(255,255,255,0))] pointer-events-none" />
+        <button onClick={() => setShowSettings(true)} className="absolute top-6 right-6 p-2.5 bg-white border border-slate-200 rounded-xl text-[#85929E] hover:text-[#2C3E50] hover:shadow-md transition-all z-50 shadow-sm">
+          <Settings size={18} />
+        </button>
+        <div className="w-full max-w-[380px] relative z-10">
+          {/* Mobile logo */}
+          <div className="lg:hidden text-center mb-10">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#842327] shadow-xl shadow-[#842327]/30 mb-6">
+              <Activity size={28} className="text-white" />
             </div>
-            {loginError && (
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-[#DC3545]/10 border border-[#DC3545]/20 rounded-xl">
-                <AlertCircle size={14} className="text-[#DC3545] shrink-0" />
-                <span className="text-[#DC3545] text-xs font-semibold">{loginError}</span>
+            <h1 className="text-2xl font-black text-[#2C3E50] tracking-tight">QC Dashboard</h1>
+          </div>
+          {/* Desktop heading */}
+          <div className="mb-8">
+            <p className="text-[10px] font-black text-[#842327] uppercase tracking-widest mb-1">QC Dashboard</p>
+            <h2 className="text-2xl font-black text-[#2C3E50] tracking-tight">ยินดีต้อนรับ</h2>
+          </div>
+          <div className="bg-white border border-slate-200/80 rounded-3xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.07)]">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!auth || currentError) {
+                setLoginError('ไม่สามารถเชื่อมต่อ Firebase ได้ กรุณาตั้งค่า Config');
+                setShowSettings(true);
+                return;
+              }
+              setLoginError('');
+              try {
+                await signInWithEmailAndPassword(auth, inputUser, inputPass);
+              } catch (error) {
+                if (error.code === 'auth/invalid-email') setLoginError('รูปแบบอีเมลไม่ถูกต้อง');
+                else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') setLoginError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+                else setLoginError('เกิดข้อผิดพลาด: ' + error.message);
+              }
+            }} className="space-y-5">
+              <div>
+                <label className="block text-[10px] font-black text-[#85929E] uppercase tracking-widest mb-2">Email</label>
+                <input type="text" value={inputUser} onChange={e=>{setInputUser(e.target.value);setLoginError('');}}
+                  className="w-full px-4 py-3.5 bg-[#F8F9FA] border border-slate-200 rounded-xl text-[#2C3E50] text-sm font-semibold outline-none focus:border-[#842327] focus:ring-2 focus:ring-[#842327]/20 transition-all placeholder:text-[#85929E]"
+                  placeholder="Enter email" />
               </div>
-            )}
-            <button type="submit" className="w-full py-3.5 bg-gradient-to-r from-[#842327] via-[#D32F2F] to-[#842327] animate-gradient-x shimmer text-white rounded-xl font-black text-sm tracking-wider transition-all shadow-lg shadow-[#842327]/30 hover:shadow-[#D32F2F]/40 hover:-translate-y-0.5 active:scale-[0.98]">
-              Login
-            </button>
-          </form>
+              <div>
+                <label className="block text-[10px] font-black text-[#85929E] uppercase tracking-widest mb-2">Password</label>
+                <input type="password" value={inputPass} onChange={e=>{setInputPass(e.target.value);setLoginError('');}}
+                  className="w-full px-4 py-3.5 bg-[#F8F9FA] border border-slate-200 rounded-xl text-[#2C3E50] text-sm font-semibold outline-none focus:border-[#842327] focus:ring-2 focus:ring-[#842327]/20 transition-all placeholder:text-[#85929E]"
+                  placeholder="••••••••" />
+              </div>
+              {loginError && (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-[#DC3545]/10 border border-[#DC3545]/20 rounded-xl">
+                  <AlertCircle size={14} className="text-[#DC3545] shrink-0" />
+                  <span className="text-[#DC3545] text-xs font-semibold">{loginError}</span>
+                </div>
+              )}
+              <button type="submit" className="w-full py-3.5 bg-gradient-to-r from-[#842327] via-[#D32F2F] to-[#842327] animate-gradient-x shimmer text-white rounded-xl font-black text-sm tracking-wider transition-all shadow-lg shadow-[#842327]/25 hover:shadow-[#842327]/40 hover:-translate-y-0.5 active:scale-[0.98]">
+                เข้าสู่ระบบ
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -652,29 +688,35 @@ export default function App() {
 
   if (needsProjectSelection) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#F8F9FA] to-[#E2E8F0] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4 relative overflow-hidden">
         <style>{ANIMATION_STYLES}</style>
-        <div className="w-full max-w-md">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(132,35,39,0.08),rgba(255,255,255,0))] pointer-events-none" />
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-[#842327]/[0.04] rounded-full blur-3xl pointer-events-none" />
+        <div className="w-full max-w-md relative z-10">
           <div className="text-center mb-8">
-            <Logo />
-            <h1 className="text-2xl font-black text-[#2C3E50] tracking-tight mt-6">เลือกโปรเจกต์</h1>
-            <p className="text-[#85929E] text-sm mt-1">กรุณาเลือกโปรเจกต์ที่ต้องการเข้าใช้งาน</p>
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#842327] shadow-xl shadow-[#842327]/30 mb-5">
+              <Activity size={24} className="text-white" />
+            </div>
+            <p className="text-[10px] font-black text-[#842327] uppercase tracking-widest mb-1">QC Dashboard</p>
+            <h1 className="text-2xl font-black text-[#2C3E50] tracking-tight">เลือกโปรเจกต์</h1>
+            <p className="text-[#85929E] text-sm mt-1.5">กรุณาเลือกโปรเจกต์ที่ต้องการเข้าใช้งาน</p>
           </div>
-          <div className="bg-white backdrop-blur-xl border border-slate-200 rounded-3xl p-6 shadow-xl space-y-3 max-h-[60vh] overflow-y-auto">
-            {projects.map(proj => (
-              <button 
-                key={proj.id} 
+          <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.07)] space-y-2 max-h-[60vh] overflow-y-auto">
+            {projects.map((proj) => (
+              <button
+                key={proj.id}
                 type="button"
                 onClick={() => handleSelectProject(proj.id)}
-                className="w-full text-left flex items-center gap-4 p-4 rounded-xl bg-white border border-slate-100 hover:border-[#842327]/50 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group"
+                className="w-full text-left flex items-center gap-4 p-4 rounded-2xl bg-white border border-slate-100/80 hover:border-[#842327]/30 hover:bg-[#F8F9FA] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group"
               >
-                <div className="w-10 h-10 rounded-lg bg-[#F8F9FA] flex items-center justify-center group-hover:bg-[#842327]/10 transition-colors">
-                  <FolderOpen size={18} className="text-[#85929E] group-hover:text-[#842327]" />
+                <div className="w-10 h-10 rounded-xl bg-[#F8F9FA] border border-slate-200 flex items-center justify-center group-hover:bg-[#842327]/10 group-hover:border-[#842327]/20 transition-all">
+                  <FolderOpen size={17} className="text-[#85929E] group-hover:text-[#842327] transition-colors" />
                 </div>
-                <div>
-                  <p className="font-bold text-[#2C3E50]">{proj.name}</p>
-                  <p className="text-xs text-[#85929E] font-semibold">{proj.id}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-[#2C3E50] group-hover:text-[#842327] transition-colors truncate">{proj.name}</p>
+                  <p className="text-[10px] text-[#85929E] font-semibold mt-0.5 truncate">{proj.id}</p>
                 </div>
+                <ChevronRight size={15} className="text-slate-300 group-hover:text-[#842327] transition-colors shrink-0" />
               </button>
             ))}
           </div>
@@ -764,64 +806,95 @@ export default function App() {
       </aside>
 
       {/* Main Sidebar */}
-      <aside className="hidden md:flex w-64 bg-[#842327] border-r border-[#842327] flex-col shrink-0 sticky top-0 h-screen overflow-y-auto">
-        <div className="p-6 border-b border-white/10">
+      <aside className="hidden md:flex w-64 bg-gradient-to-b from-[#1E0608] via-[#4A1215] to-[#6B1A1E] border-r border-[#2C0A0C] flex-col shrink-0 sticky top-0 h-screen overflow-y-auto">
+        <div className="p-5 border-b border-white/[0.07] bg-black/10">
           <Logo dark={true} />
         </div>
-        <div className="p-4 flex flex-col gap-2 flex-1">
-          <div className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-2 px-2 mt-2">เมนูหลัก</div>
-          
-          <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black bg-gradient-to-r from-[#842327] via-[#D32F2F] to-[#842327] animate-gradient-x shimmer text-white shadow-lg shadow-black/20 w-full text-left border-none">
-            <Zap size={16}/> Live QC
+        <div className="p-4 flex flex-col gap-1 flex-1">
+          <div className="flex items-center gap-2 mb-2 px-2 mt-3">
+            <div className="flex-1 h-px bg-white/[0.08]" />
+            <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">เมนูหลัก</span>
+            <div className="flex-1 h-px bg-white/[0.08]" />
+          </div>
+
+          <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black bg-white/[0.12] text-white shadow-lg shadow-black/30 w-full text-left border border-white/[0.15] relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-r from-white/[0.06] to-transparent pointer-events-none" />
+            <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0 group-hover:bg-white/30 transition-colors">
+              <Zap size={13}/>
+            </div>
+            <span className="relative z-10">Live QC</span>
+            <div className="ml-auto w-2 h-2 rounded-full bg-[#28A745] animate-pulse shadow-[0_0_6px_rgba(40,167,69,0.7)]" />
           </button>
           
-          <a href="https://cati-ces.web.app/login" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/80 hover:bg-white/10 hover:text-white transition w-full text-left border border-transparent">
-            <ExternalLink size={16}/> FW Progress
+          <a href="https://cati-ces.web.app/login" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/60 hover:bg-white/[0.08] hover:text-white transition-all w-full text-left border border-transparent group">
+            <div className="w-6 h-6 rounded-lg bg-white/[0.07] flex items-center justify-center shrink-0 group-hover:bg-white/15 transition-colors">
+              <ExternalLink size={13}/>
+            </div>
+            FW Progress
           </a>
 
           {userRole !== 'INV' && (
             <button onClick={() => { setShowHotsheetModal(true); setHotsheetPath('Hotsheet'); }}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/80 hover:bg-white/10 hover:text-white transition w-full text-left border border-transparent">
-              <FolderOpen size={16}/> Hotsheet
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/60 hover:bg-white/[0.08] hover:text-white transition-all w-full text-left border border-transparent group">
+              <div className="w-6 h-6 rounded-lg bg-white/[0.07] flex items-center justify-center shrink-0 group-hover:bg-white/15 transition-colors">
+                <FolderOpen size={13}/>
+              </div>
+              Hotsheet
             </button>
           )}
 
           {userRole === 'Admin' && (
-            <button onClick={() => navigate('/dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/80 hover:bg-white/10 hover:text-white transition w-full text-left border border-transparent">
-              <BarChart2 size={16}/> Dashboard
+            <button onClick={() => navigate('/dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/60 hover:bg-white/[0.08] hover:text-white transition-all w-full text-left border border-transparent group">
+              <div className="w-6 h-6 rounded-lg bg-white/[0.07] flex items-center justify-center shrink-0 group-hover:bg-white/15 transition-colors">
+                <BarChart2 size={13}/>
+              </div>
+              Dashboard
             </button>
           )}
           {['admin','qc'].includes(String(userRole).toLowerCase()) && (
-            <button onClick={handleQuickSync} disabled={isSyncing} className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/80 hover:bg-white/10 hover:text-white transition disabled:opacity-50 w-full text-left border border-transparent">
-              <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""}/> 
+            <button onClick={handleQuickSync} disabled={isSyncing} className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/60 hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-40 w-full text-left border border-transparent group">
+              <div className="w-6 h-6 rounded-lg bg-white/[0.07] flex items-center justify-center shrink-0 group-hover:bg-white/15 transition-colors">
+                <RefreshCw size={13} className={isSyncing ? "animate-spin" : ""}/>
+              </div>
               {isSyncing ? 'กำลังดึงข้อมูล...' : 'Sync (500)'}
             </button>
           )}
           {['admin','qc','gallup','gullup'].includes(String(userRole).toLowerCase()) && (
-            <button onClick={handleExportCSV} className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/80 hover:bg-white/10 hover:text-white transition w-full text-left border border-transparent">
-              <Download size={16}/> Export CSV
+            <button onClick={handleExportCSV} className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black text-white/60 hover:bg-white/[0.08] hover:text-white transition-all w-full text-left border border-transparent group">
+              <div className="w-6 h-6 rounded-lg bg-white/[0.07] flex items-center justify-center shrink-0 group-hover:bg-white/15 transition-colors">
+                <Download size={13}/>
+              </div>
+              Export CSV
             </button>
           )}
-          
+
           <div className="mt-auto">
             {userRole==='Admin' && (
-              <button onClick={() => navigate('/admin')} className="flex items-center gap-3 px-4 py-3 bg-black/20 hover:bg-black/40 text-white rounded-xl text-xs font-black transition shadow-lg w-full text-left mb-2">
-                <Shield size={16}/> จัดการระบบกลาง
+              <button onClick={() => navigate('/admin')} className="flex items-center gap-3 px-4 py-3 bg-black/25 hover:bg-black/40 text-white/80 hover:text-white rounded-xl text-xs font-black transition-all shadow-lg w-full text-left mb-2 border border-white/[0.06] group">
+                <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
+                  <Shield size={13}/>
+                </div>
+                จัดการระบบกลาง
               </button>
             )}
           </div>
         </div>
-        <div className="p-4 border-t border-white/10 bg-black/10">
-          <div className="flex flex-col items-start justify-center mb-4 px-2">
-            <span className="text-[9px] font-black text-white/60 uppercase tracking-widest">Logged in as</span>
-            <span className="text-xs font-bold text-white truncate w-full" title={auth?.currentUser?.email || userRole || 'Unknown'}>{auth?.currentUser?.email || userRole || 'Unknown'}</span>
+        <div className="p-4 border-t border-white/[0.07] bg-black/20">
+          <div className="flex items-center gap-3 mb-3 px-1">
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0 border border-white/10">
+              <User size={14} className="text-white/60" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[9px] font-black text-white/30 uppercase tracking-widest">Logged in as</div>
+              <div className="text-xs font-bold text-white/80 truncate" title={auth?.currentUser?.email || userRole || 'Unknown'}>{auth?.currentUser?.email || userRole || 'Unknown'}</div>
+            </div>
           </div>
           <button onClick={() => {
             if(auth) signOut(auth);
             try{ localStorage.removeItem('active_project_id'); } catch(e){}
             setActiveProjectId('');
-          }} className="flex items-center justify-center gap-2 w-full p-2.5 bg-white/10 border border-transparent hover:bg-white/20 text-white rounded-xl transition font-bold text-xs" title="Logout">
-            <User size={14}/> Logout
+          }} className="flex items-center justify-center gap-2 w-full p-2.5 bg-white/[0.06] border border-white/[0.08] hover:bg-white/[0.12] hover:border-white/15 text-white/60 hover:text-white rounded-xl transition-all font-bold text-xs" title="Logout">
+            <User size={13}/> Logout
           </button>
         </div>
       </aside>
@@ -830,7 +903,7 @@ export default function App() {
         <div className="max-w-screen-2xl w-full mx-auto p-4 md:p-6 space-y-5">
 
         {/* ── HEADER ── */}
-        <header className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-4 flex items-center justify-between gap-4 sticky top-4 z-30">
+        <header className="bg-white/85 backdrop-blur-2xl rounded-3xl border border-slate-200/60 shadow-[0_4px_24px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] px-6 py-4 flex items-center justify-between gap-4 sticky top-4 z-30 transition-all">
           <div className="flex items-center gap-4">
             <div className="md:hidden">
                <Logo dark={false}/>
@@ -896,25 +969,25 @@ export default function App() {
           ].map(kpi => {
             const isActive = activeKpiFilter === kpi.id;
             const schemes = {
-              slate: { bg: 'bg-white', border: 'border-slate-200', icon: 'text-[#85929E]', val: 'text-[#2C3E50]', activeBg: 'bg-[#F8F9FA] ring-2 ring-[#842327]' },
-              indigo: { bg: 'bg-white', border: 'border-slate-200', icon: 'text-[#2C3E50]', val: 'text-[#2C3E50]', activeBg: 'bg-[#F8F9FA] ring-2 ring-[#842327]' },
-              emerald: { bg: 'bg-white', border: 'border-slate-200', icon: 'text-[#28A745]', val: 'text-[#28A745]', activeBg: 'bg-[#28A745]/10 ring-2 ring-[#28A745]' },
-              amber: { bg: 'bg-white', border: 'border-slate-200', icon: 'text-[#E67E22]', val: 'text-[#E67E22]', activeBg: 'bg-[#E67E22]/10 ring-2 ring-[#E67E22]' },
-              rose: { bg: 'bg-white', border: 'border-slate-200', icon: 'text-[#DC3545]', val: 'text-[#DC3545]', activeBg: 'bg-[#DC3545]/10 ring-2 ring-[#DC3545]' },
+            slate: { bg: 'bg-gradient-to-br from-white to-slate-50', border: 'border-slate-200/80', icon: 'text-slate-500 bg-slate-100', val: 'text-slate-700', activeBg: 'bg-slate-50 ring-2 ring-slate-400 shadow-md', accent: 'bg-slate-400' },
+            indigo: { bg: 'bg-gradient-to-br from-white to-indigo-50/40', border: 'border-indigo-100/80', icon: 'text-indigo-600 bg-indigo-100', val: 'text-indigo-900', activeBg: 'bg-indigo-50 ring-2 ring-indigo-400 shadow-md', accent: 'bg-indigo-500' },
+            emerald: { bg: 'bg-gradient-to-br from-white to-emerald-50/50', border: 'border-emerald-100/80', icon: 'text-emerald-600 bg-emerald-100', val: 'text-emerald-700', activeBg: 'bg-emerald-50 ring-2 ring-emerald-400 shadow-md', accent: 'bg-emerald-500' },
+            amber: { bg: 'bg-gradient-to-br from-white to-amber-50/50', border: 'border-amber-100/80', icon: 'text-amber-600 bg-amber-100', val: 'text-amber-700', activeBg: 'bg-amber-50 ring-2 ring-amber-400 shadow-md', accent: 'bg-amber-500' },
+            rose: { bg: 'bg-gradient-to-br from-white to-rose-50/50', border: 'border-rose-100/80', icon: 'text-rose-600 bg-rose-100', val: 'text-rose-700', activeBg: 'bg-rose-50 ring-2 ring-rose-400 shadow-md', accent: 'bg-rose-500' },
             };
             const s = schemes[kpi.scheme];
             return (
               <button key={kpi.id||'total'} onClick={()=>{ if(kpi.id === null) setActiveKpiFilter(null); else setActiveKpiFilter(isActive ? null : kpi.id); }}
-                className={`text-left p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#842327]/10 active:scale-95 group relative overflow-hidden
-                  ${isActive ? s.activeBg : `${s.bg} ${s.border}`}`}>
-                {isActive && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#842327] animate-pulse"/>}
-                <div className={`w-8 h-8 rounded-xl bg-[#F8F9FA] border border-slate-100 flex items-center justify-center mb-3 ${s.icon}`}>
-                  <kpi.icon size={15}/>
+              className={`text-left p-5 rounded-2xl border transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] active:scale-95 group relative overflow-hidden
+                ${isActive ? s.activeBg : `${s.bg} ${s.border} shadow-sm`}`}>
+              <div className={`absolute top-0 left-0 w-full h-1 ${s.accent} transition-all duration-300 ${isActive ? 'opacity-100' : 'opacity-30 group-hover:opacity-60'}`}/>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 ${s.icon}`}>
+                <kpi.icon size={15}/>
                 </div>
-                <p className="text-[9px] font-black text-[#85929E] uppercase tracking-widest leading-none">{kpi.label}</p>
-                <div className={`text-2xl font-black mt-1.5 ${s.val}`}>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">{kpi.label}</p>
+              <div className={`text-2xl font-black mt-1.5 tracking-tight ${s.val}`}>
                   {kpi.value}
-                  {kpi.sub && <span className="text-sm font-bold text-[#85929E] ml-1.5">{kpi.sub}</span>}
+                {kpi.sub && <span className="text-sm font-bold text-slate-400 ml-1.5">{kpi.sub}</span>}
                 </div>
               </button>
             );
@@ -924,7 +997,7 @@ export default function App() {
         {/* ── CHARTS ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Pie */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow duration-300">
             <h3 className="font-black text-[#2C3E50] text-sm flex items-center gap-2 mb-4 uppercase tracking-wide">
               <div className="w-7 h-7 rounded-lg bg-[#F8F9FA] border border-slate-200 flex items-center justify-center"><PieChart size={13} className="text-[#85929E]"/></div>
               Case Composition
@@ -954,7 +1027,7 @@ export default function App() {
             </div>
           </div>
           {/* Bar */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow duration-300">
             <h3 className="font-black text-[#2C3E50] text-sm flex items-center gap-2 mb-4 uppercase tracking-wide">
               <div className="w-7 h-7 rounded-lg bg-[#28A745]/10 flex items-center justify-center"><BarChart2 size={13} className="text-[#28A745]"/></div>
               Monthly Audit Progress
@@ -983,7 +1056,7 @@ export default function App() {
         </div>
 
         {/* ── MATRIX TABLE ── */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h3 className="font-black text-[#2C3E50] text-sm flex items-center gap-2 uppercase tracking-wide">
               <div className="w-7 h-7 rounded-lg bg-[#F8F9FA] flex items-center justify-center border border-slate-200"><Users size={13} className="text-[#85929E]"/></div>
@@ -1052,7 +1125,7 @@ export default function App() {
 
         {/* ── TREND CHART ── */}
         {activeCell.agent && trendData.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-black text-slate-700 text-sm flex items-center gap-2 uppercase">
                 <TrendingUp size={15} className="text-[#842327]"/>
@@ -1077,7 +1150,7 @@ export default function App() {
         )}
 
         {/* ── DETAIL LIST ── */}
-        <div id="detail-section" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div id="detail-section" className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <h3 className="font-black text-slate-700 text-sm flex items-center gap-2 uppercase tracking-wide">

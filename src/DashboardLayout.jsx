@@ -24,9 +24,9 @@ const DraggableVariable = ({ id, name }) => {
 
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}
-         className="bg-white border border-slate-200 p-3 rounded-xl shadow-sm cursor-grab active:cursor-grabbing hover:border-[#D32F2F]/50 hover:shadow-lg hover:shadow-[#842327]/10 hover:-translate-y-1 transition-all duration-300 flex items-center gap-2 group">
-      <div className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-[#D32F2F] transition-colors" />
-      <span className="text-xs font-bold text-[#85929E] truncate group-hover:text-[#2C3E50] transition-colors">{name}</span>
+         className="bg-white border border-slate-200/80 px-4 py-2.5 rounded-2xl shadow-sm cursor-grab active:cursor-grabbing hover:border-[#D32F2F]/40 hover:shadow-md hover:-translate-y-0.5 hover:bg-rose-50/30 transition-all duration-300 flex items-center gap-2.5 group">
+      <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-[#D32F2F] transition-colors shadow-inner" />
+      <span className="text-xs font-black text-[#64748B] truncate group-hover:text-[#2C3E50] transition-colors">{name}</span>
     </div>
   );
 };
@@ -34,10 +34,10 @@ const DraggableVariable = ({ id, name }) => {
 // --- 2. พื้นที่สำหรับวางตัวแปร (Droppable Area) ---
 const DroppableArea = ({ id, title, items, onRemoveItem, children }) => {
   const { isOver, setNodeRef } = useDroppable({ id });
-  const bg = isOver ? 'bg-gradient-to-br from-[#D32F2F]/10 to-[#842327]/5 border-[#D32F2F]/50 shadow-[inset_0_0_20px_rgba(211,47,47,0.1)] animate-pulse' : 'bg-slate-50 border-slate-200 hover:border-[#842327]/30 hover:bg-white shadow-inner transition-all duration-300';
+  const bg = isOver ? 'bg-gradient-to-br from-rose-50/80 to-white border-[#D32F2F]/40 shadow-[inset_0_0_20px_rgba(211,47,47,0.05)] animate-pulse' : 'bg-slate-50/50 border-slate-200/80 hover:border-[#842327]/30 hover:bg-white hover:shadow-sm transition-all duration-300';
 
   return (
-    <div ref={setNodeRef} className={`border-2 border-dashed rounded-2xl p-5 min-h-[140px] transition-all flex flex-col ${bg}`}>
+    <div ref={setNodeRef} className={`border-2 border-dashed rounded-3xl p-5 min-h-[140px] transition-all flex flex-col ${bg}`}>
       <h3 className="font-black text-[#85929E] text-[10px] uppercase tracking-widest mb-3">{title}</h3>
       <div className="flex-1 flex flex-wrap content-start gap-2">
         {items.length === 0 ? (
@@ -162,7 +162,7 @@ const SavedViewCard = ({ config, rawData, onClose }) => {
   }, [config, rawData]);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-lg flex flex-col h-[450px] animate-in zoom-in-95 duration-300">
+    <div className="bg-white border border-slate-200/80 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow flex flex-col h-[450px] animate-in zoom-in-95 duration-300 overflow-hidden">
       <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-[#F8F9FA] rounded-t-2xl shrink-0">
         <h4 className="font-black text-[#2C3E50] text-sm truncate flex-1 pr-4" title={config.name}>{config.name}</h4>
         <button onClick={() => onClose(config.id)} className="text-[#85929E] hover:text-[#DC3545] hover:bg-rose-50 p-1.5 rounded-lg transition-colors shrink-0" title="ซ่อนมุมมองนี้">
@@ -539,7 +539,7 @@ const DashboardLayout = () => {
       <div className="max-w-screen-2xl mx-auto w-full space-y-5 flex-1 flex flex-col">
         
         {/* Header */}
-        <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl rounded-2xl border border-slate-200 shadow-sm px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
+        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-2xl rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => navigate('/')} className="p-2 hover:bg-slate-100 text-[#85929E] rounded-xl transition">
               <ArrowLeft size={18} />
@@ -589,7 +589,7 @@ const DashboardLayout = () => {
         <div className="flex flex-col lg:flex-row gap-5 min-h-[500px]">
           
           {/* Sidebar สำหรับเลือกตัวแปร */}
-          <div className="w-full lg:w-72 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm overflow-y-auto flex flex-col shrink-0 max-h-[800px]">
+          <div className="w-full lg:w-72 bg-white border border-slate-200/80 p-5 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-y-auto flex flex-col shrink-0 max-h-[800px]">
             <h2 className="font-black text-[#2C3E50] text-sm flex items-center justify-between mb-3 uppercase tracking-wide">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-[#842327]/10 flex items-center justify-center border border-[#842327]/20"><BarChart2 size={13} className="text-[#842327]"/></div>
@@ -708,7 +708,7 @@ const DashboardLayout = () => {
             </div>
 
             {/* กล่องสำหรับวาดตาราง Crosstab หรือ กราฟ */}
-            <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-md p-6 flex flex-col overflow-hidden">
+            <div className="flex-1 bg-white border border-slate-200/80 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 flex flex-col overflow-hidden">
               <div className="flex items-center justify-between mb-4 shrink-0 pb-3 border-b border-slate-100">
                 <h3 className="font-black text-[#2C3E50] text-sm flex items-center gap-2 uppercase tracking-wide">
                   <div className="w-7 h-7 rounded-lg bg-[#F8F9FA] flex items-center justify-center border border-slate-200">
