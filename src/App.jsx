@@ -869,12 +869,20 @@ export default function App() {
 
           <div className="mt-auto">
             {userRole==='Admin' && (
-              <button onClick={() => navigate('/admin')} className="flex items-center gap-3 px-4 py-3 bg-black/25 hover:bg-black/40 text-white/80 hover:text-white rounded-xl text-xs font-black transition-all shadow-lg w-full text-left mb-2 border border-white/[0.06] group">
-                <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
-                  <Shield size={13}/>
-                </div>
-                จัดการระบบกลาง
-              </button>
+              <>
+                <button onClick={() => navigate('/report')} className="flex items-center gap-3 px-4 py-3 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 hover:text-white rounded-xl text-xs font-black transition-all w-full text-left mb-2 border border-indigo-400/20 group">
+                  <div className="w-6 h-6 rounded-lg bg-indigo-400/20 flex items-center justify-center shrink-0 group-hover:bg-indigo-400/30 transition-colors">
+                    <BarChart2 size={13}/>
+                  </div>
+                  Report
+                </button>
+                <button onClick={() => navigate('/admin')} className="flex items-center gap-3 px-4 py-3 bg-black/25 hover:bg-black/40 text-white/80 hover:text-white rounded-xl text-xs font-black transition-all shadow-lg w-full text-left mb-2 border border-white/[0.06] group">
+                  <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
+                    <Shield size={13}/>
+                  </div>
+                  จัดการระบบกลาง
+                </button>
+              </>
             )}
           </div>
         </div>

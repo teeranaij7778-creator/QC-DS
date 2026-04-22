@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.jsx'
 import Dashboard from './Dashboard.jsx'
 import AdminSettings from './AdminSettings.jsx'
+import ReportViewer from './ReportViewer.jsx'
 import './style.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -13,6 +14,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/" element={<App />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin" element={<AdminSettings />} />
+        <Route path="/report" element={<ReportViewer />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>,

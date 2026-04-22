@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
-import { RefreshCw, X, DownloadCloud, Loader2, ArrowLeft, BarChart2, Users, Settings, Filter, Table2, PieChart, Search, Save, Trash2, LayoutDashboard, CheckSquare, Square, FileUp, AlertCircle, CheckCircle, Shield } from 'lucide-react';
-import { collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, getDoc } from 'firebase/firestore';
+import { RefreshCw, X, DownloadCloud, Loader2, ArrowLeft, BarChart2, Users, Settings, Filter, Table2, PieChart, Search, Save, Trash2, LayoutDashboard, CheckSquare, Square, FileUp, AlertCircle, CheckCircle, Shield, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { collection, getDocs, addDoc, deleteDoc, doc, writeBatch, query, where, getDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable } from 'firebase/storage';
 import { useFirebase } from './useFirebase';
 import { calculateCrosstab } from './dataProcessing.js';
@@ -398,6 +398,8 @@ const DashboardLayout = () => {
       projectId: activeProjectId,
       name: viewName,
       rowVars, colVars, valueVars, filterVars, filterValue, pctType, aggType, viewMode,
+      published: false,
+      order: savedViews.length,
       createdAt: Date.now()
     };
 
@@ -420,6 +422,17 @@ const DashboardLayout = () => {
       setSelectedViewIds(selectedViewIds.filter(vId => vId !== id));
     } catch (err) {
       console.error("Error deleting view:", err);
+    }
+  };
+
+  const handleTogglePublish = async (id, currentPublished) => {
+    try {
+      await updateDoc(doc(db, "dashboard_views", id), { published: !currentPublished });
+      setSavedViews(prev => prev.map(v => v.id === id ? { ...v, published: !currentPublished } : v));
+      showNotif('success', !currentPublished ? '✅ เผยแพร่แล้ว — ลูกค้าเห็นได้ที่ /report' : 'ซ่อนจากหน้า Report แล้ว');
+    } catch (err) {
+      console.error("Error toggling publish:", err);
+      showNotif('error', "เกิดข้อผิดพลาด: " + err.message);
     }
   };
 
@@ -640,13 +653,16 @@ const DashboardLayout = () => {
 
             {/* --- พื้นที่แสดงรายการมุมมองที่บันทึกไว้ --- */}
             <div className="mt-6 pt-5 border-t border-slate-200 flex-1 flex flex-col min-h-[200px]">
-              <h2 className="font-black text-[#2C3E50] text-sm flex items-center justify-between gap-2 mb-3 uppercase tracking-wide">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h2 className="font-black text-[#2C3E50] text-sm flex items-center gap-2 uppercase tracking-wide">
                   <div className="w-7 h-7 rounded-lg bg-[#28A745]/10 border border-[#28A745]/20 flex items-center justify-center"><Save size={13} className="text-[#28A745]"/></div>
                   มุมมองที่บันทึก
-                </div>
-                <span className="text-[10px] font-bold text-[#85929E] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">{savedViews.length}</span>
-              </h2>
+                  <span className="text-[10px] font-bold text-[#85929E] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">{savedViews.length}</span>
+                </h2>
+                <button onClick={() => navigate('/report')} className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-600 rounded-lg text-[10px] font-black transition hover:bg-indigo-100" title="เปิดหน้า Report">
+                  <ExternalLink size={11}/> Report
+                </button>
+              </div>
               <div className="flex-1 overflow-y-auto pr-2 space-y-2">
                 {isFetchingViews ? (
                   <div className="flex justify-center py-4"><Loader2 size={20} className="text-[#28A745] animate-spin"/></div>
@@ -656,14 +672,26 @@ const DashboardLayout = () => {
                   savedViews.map(view => {
                     const isSelected = selectedViewIds.includes(view.id);
                     return (
-                      <div key={view.id} className={`flex items-center justify-between p-2 rounded-xl border transition-all ${isSelected ? 'bg-[#28A745]/10 border-[#28A745]/50' : 'bg-white border-slate-200 hover:border-[#28A745]/30'}`}>
-                        <button onClick={() => isSelected ? setSelectedViewIds(selectedViewIds.filter(id => id !== view.id)) : setSelectedViewIds([...selectedViewIds, view.id])} className="flex-1 flex items-center gap-2 text-left truncate pr-2">
-                          {isSelected ? <CheckSquare size={14} className="text-[#28A745] shrink-0" /> : <Square size={14} className="text-[#85929E] shrink-0" />}
-                          <span className={`text-xs font-bold truncate ${isSelected ? 'text-[#28A745]' : 'text-[#2C3E50]'}`}>{view.name}</span>
-                        </button>
-                        <button onClick={() => handleDeleteSavedView(view.id, view.name)} className="p-1.5 text-[#85929E] hover:text-[#DC3545] hover:bg-rose-50 rounded-lg transition-colors shrink-0" title="ลบทิ้ง">
-                          <Trash2 size={13} />
-                        </button>
+                      <div key={view.id} className={`p-2 rounded-xl border transition-all ${isSelected ? 'bg-[#28A745]/10 border-[#28A745]/50' : 'bg-white border-slate-200 hover:border-[#28A745]/30'}`}>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => isSelected ? setSelectedViewIds(selectedViewIds.filter(id => id !== view.id)) : setSelectedViewIds([...selectedViewIds, view.id])} className="flex-1 flex items-center gap-2 text-left truncate">
+                            {isSelected ? <CheckSquare size={14} className="text-[#28A745] shrink-0" /> : <Square size={14} className="text-[#85929E] shrink-0" />}
+                            <span className={`text-xs font-bold truncate ${isSelected ? 'text-[#28A745]' : 'text-[#2C3E50]'}`}>{view.name}</span>
+                          </button>
+                          <button onClick={() => handleTogglePublish(view.id, view.published)} title={view.published ? 'ซ่อนจาก Report' : 'เผยแพร่ไปหน้า Report'}
+                            className={`p-1.5 rounded-lg transition-colors shrink-0 ${view.published ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100' : 'text-[#85929E] hover:text-indigo-500 hover:bg-indigo-50'}`}>
+                            {view.published ? <Eye size={13}/> : <EyeOff size={13}/>}
+                          </button>
+                          <button onClick={() => handleDeleteSavedView(view.id, view.name)} className="p-1.5 text-[#85929E] hover:text-[#DC3545] hover:bg-rose-50 rounded-lg transition-colors shrink-0" title="ลบทิ้ง">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                        {view.published && (
+                          <div className="mt-1.5 flex items-center gap-1 px-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                            <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">เผยแพร่แล้ว</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })
