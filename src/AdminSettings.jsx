@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Users, Database, Shield, ArrowLeft, Plus, FolderKanban, Activity, Cloud, RefreshCw, Upload, FileJson, AlertOctagon, Trash2, Loader2, CheckCircle } from 'lucide-react';
+import { Settings, Users, Database, Shield, ArrowLeft, Plus, FolderKanban, Activity, Cloud, RefreshCw, Upload, FileJson, AlertOctagon, Trash2, Loader2, CheckCircle, Lock, Flame, RotateCcw } from 'lucide-react';
 import { collection, doc, getDocs, getDoc, setDoc, addDoc, deleteDoc, writeBatch, serverTimestamp, query, where } from 'firebase/firestore';
 import { useFirebase } from './useFirebase';
 import { Logo } from './UiComponents';
@@ -8,7 +8,7 @@ import { RESULT_ORDER, DEFAULT_SUPERVISORS } from './constants';
 
 const AdminSettings = () => {
   const navigate = useNavigate();
-  const { db, userRole, isAuthenticated } = useFirebase();
+  const { db, userRole, isAuthenticated, firebaseConfigStr, setFirebaseConfigStr } = useFirebase();
   
   // State สำหรับการตั้งค่า
   const [projects, setProjects] = useState([]);
@@ -27,6 +27,20 @@ const AdminSettings = () => {
   // State สำหรับ Users (Supervisors)
   const [supervisorsData, setSupervisorsData] = useState([]);
   const [newSupervisor, setNewSupervisor] = useState('');
+
+  // State สำหรับ User-Project Access
+  const [usersList, setUsersList] = useState([]);
+  const [userProjectAccess, setUserProjectAccess] = useState({});
+  const [accessSaving, setAccessSaving] = useState({});
+
+  // Navigation: 'project' | 'access' | 'firebase'
+  const [activeView, setActiveView] = useState('project');
+
+  // State สำหรับ Firebase Config Editor
+  const [localFirebaseConfig, setLocalFirebaseConfig] = useState(() => {
+    try { return JSON.parse(firebaseConfigStr || '{}'); } catch { return {}; }
+  });
+  const [configSaveStatus, setConfigSaveStatus] = useState(null);
 
   // โหลดการตั้งค่าจาก Firestore เมื่อเปิดหน้า
   useEffect(() => {
@@ -49,18 +63,29 @@ const AdminSettings = () => {
         }
         
         setProjects(projs);
-        
+
         let currentActive = activeProjectId || (projs.length > 0 ? projs[0].id : '');
         if (!currentActive || !projs.find(p => p.id === currentActive)) {
           currentActive = projs[0].id;
           try { localStorage.setItem('active_project_id', currentActive); } catch(e) {}
         }
         setActiveProjectId(currentActive);
-        
+
         const activeProj = projs.find(p => p.id === currentActive);
         setProjectName(activeProj?.name || '');
         setAppsScriptUrl(activeProj?.appsScriptUrl || '');
         setSupervisorsData(activeProj?.supervisors || []);
+
+        // ดึง users ทั้งหมดจาก user_roles
+        const usersSnap = await getDocs(collection(db, 'user_roles'));
+        const users = usersSnap.docs.map(d => ({ email: d.id, ...d.data() }));
+        setUsersList(users);
+
+        // ดึง user_project_access ทั้งหมด
+        const accessSnap = await getDocs(collection(db, 'user_project_access'));
+        const accessMap = {};
+        accessSnap.docs.forEach(d => { accessMap[d.id] = d.data().projects || []; });
+        setUserProjectAccess(accessMap);
       } catch (err) {
         console.error("Error fetching admin data:", err);
       }
@@ -71,6 +96,7 @@ const AdminSettings = () => {
   const switchProject = (id) => {
     try { localStorage.setItem('active_project_id', id); } catch(e) {}
     setActiveProjectId(id);
+    setActiveView('project');
     const activeProj = projects.find(p => p.id === id);
     if (activeProj) {
       setProjectName(activeProj.name || '');
@@ -340,6 +366,75 @@ const AdminSettings = () => {
     }
   };
 
+  // --- ฟังก์ชันจัดการ User-Project Access ---
+  const handleToggleProjectAccess = async (email, projectId, currentlyAllowed) => {
+    if (!db) return;
+    setAccessSaving(prev => ({ ...prev, [`${email}_${projectId}`]: true }));
+    try {
+      const current = userProjectAccess[email] || null;
+      let updated;
+      if (current === null) {
+        // null = เห็นทุกโปรเจค → เปลี่ยนเป็นเฉพาะที่เลือก (ยกเว้นอันที่เพิ่ง untick)
+        const allIds = projects.map(p => p.id);
+        updated = currentlyAllowed ? allIds.filter(id => id !== projectId) : [...allIds, projectId];
+      } else {
+        updated = currentlyAllowed ? current.filter(id => id !== projectId) : [...current, projectId];
+      }
+      await setDoc(doc(db, 'user_project_access', email), { projects: updated, updatedAt: serverTimestamp() });
+      setUserProjectAccess(prev => ({ ...prev, [email]: updated }));
+    } catch (e) {
+      alert("Error: " + e.message);
+    }
+    setAccessSaving(prev => ({ ...prev, [`${email}_${projectId}`]: false }));
+  };
+
+  const handleGrantAllProjects = async (email) => {
+    if (!db) return;
+    setAccessSaving(prev => ({ ...prev, [`${email}_all`]: true }));
+    try {
+      await setDoc(doc(db, 'user_project_access', email), { projects: [], updatedAt: serverTimestamp() });
+      setUserProjectAccess(prev => ({ ...prev, [email]: [] }));
+    } catch (e) {
+      alert("Error: " + e.message);
+    }
+    setAccessSaving(prev => ({ ...prev, [`${email}_all`]: false }));
+  };
+
+  const isProjectAllowed = (email, projectId) => {
+    const access = userProjectAccess[email];
+    if (access === null || access === undefined) return true;
+    if (access.length === 0) return true;
+    return access.includes(projectId);
+  };
+
+  // --- ฟังก์ชัน Firebase Config ---
+  const FIREBASE_CONFIG_KEYS = [
+    { key: 'apiKey',            label: 'API Key',             placeholder: 'AIzaSy...' },
+    { key: 'authDomain',        label: 'Auth Domain',         placeholder: 'your-project.firebaseapp.com' },
+    { key: 'projectId',         label: 'Project ID',          placeholder: 'your-project-id' },
+    { key: 'storageBucket',     label: 'Storage Bucket',      placeholder: 'your-project.firebasestorage.app' },
+    { key: 'messagingSenderId', label: 'Messaging Sender ID', placeholder: '123456789' },
+    { key: 'appId',             label: 'App ID',              placeholder: '1:123...:web:abc...' },
+  ];
+
+  const handleSaveFirebaseConfig = () => {
+    try {
+      const configStr = JSON.stringify(localFirebaseConfig, null, 2);
+      localStorage.setItem('firebase_config_str', configStr);
+      setFirebaseConfigStr(configStr);
+      setConfigSaveStatus('success');
+      setTimeout(() => { setConfigSaveStatus(null); window.location.reload(); }, 1200);
+    } catch (e) {
+      setConfigSaveStatus('error');
+    }
+  };
+
+  const handleResetFirebaseConfig = () => {
+    if (!window.confirm('รีเซ็ตกลับเป็นค่าจาก .env ไฟล์?')) return;
+    localStorage.removeItem('firebase_config_str');
+    window.location.reload();
+  };
+
   const activeSupervisorsList = [...new Set([...(DEFAULT_SUPERVISORS || []), ...(supervisorsData || [])])];
 
   // ระบบป้องกัน: ถ้าไม่ใช่ Admin จะถูกดีดกลับหน้าหลัก
@@ -400,160 +495,361 @@ const AdminSettings = () => {
 
       {/* Main Content Layout */}
       <div className="flex-1 flex overflow-hidden">
+
         {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col overflow-y-auto shrink-0">
+        <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shrink-0">
+
+          {/* โปรเจกต์ */}
           <div className="p-4 flex items-center justify-between border-b border-slate-100 shrink-0">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">รายการโปรเจกต์</span>
-            <button onClick={handleCreateProject} className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition shadow-sm" title="เพิ่มโปรเจกต์ใหม่">
-              <Plus size={14} />
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">โปรเจกต์</span>
+            <button onClick={handleCreateProject} className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition" title="เพิ่มโปรเจกต์ใหม่">
+              <Plus size={13} />
             </button>
           </div>
-          <div className="p-3 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
+          <div className="p-2 space-y-0.5 flex-1 overflow-y-auto">
             {projects.map(p => {
-              const isActive = p.id === activeProjectId;
+              const isActive = activeView === 'project' && p.id === activeProjectId;
               return (
                 <button key={p.id} onClick={() => switchProject(p.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-black transition-all text-left
-                    ${isActive ? 'bg-indigo-50 text-indigo-700 shadow-sm border border-indigo-100' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}>
-                  <FolderKanban size={16} className={`${isActive ? 'text-indigo-600' : 'text-slate-400'} shrink-0`} />
-                  <span className="truncate flex-1">{p.name}</span>
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left
+                    ${isActive ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}>
+                  <FolderKanban size={14} className={`${isActive ? 'text-indigo-500' : 'text-slate-300'} shrink-0`} />
+                  <span className="truncate">{p.name}</span>
                 </button>
               );
             })}
           </div>
-          <div className="mt-auto p-4 m-4 bg-slate-50 border border-slate-200 rounded-2xl">
-            <div className="flex items-center gap-2 text-slate-600 mb-1"><Activity size={14} className="text-indigo-500"/> <span className="text-[10px] font-black uppercase">System Status</span></div>
-            <p className="text-[10px] text-slate-400 font-semibold leading-tight">ระบบทำงานปกติ เชื่อมต่อ Firebase แล้ว</p>
+
+          {/* ระบบ */}
+          <div className="border-t border-slate-100 p-2 space-y-0.5 shrink-0">
+            <p className="px-3 pt-2 pb-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">ระบบ</p>
+            <button
+              onClick={() => setActiveView('access')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left
+                ${activeView === 'access' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}>
+              <Lock size={14} className={activeView === 'access' ? 'text-rose-500' : 'text-slate-300'} />
+              <span>สิทธิ์การเข้าถึง</span>
+              <span className={`ml-auto text-[9px] font-black px-1.5 py-0.5 rounded-md ${activeView === 'access' ? 'bg-rose-100 text-rose-500' : 'bg-slate-100 text-slate-400'}`}>
+                {usersList.length} users
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveView('firebase')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left
+                ${activeView === 'firebase' ? 'bg-orange-50 text-orange-700 border border-orange-100' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}>
+              <Flame size={14} className={activeView === 'firebase' ? 'text-orange-500' : 'text-slate-300'} />
+              <span>Firebase Config</span>
+            </button>
+          </div>
+
+          {/* Status */}
+          <div className="p-3 m-3 mt-2 bg-slate-50 border border-slate-100 rounded-2xl shrink-0">
+            <div className="flex items-center gap-1.5 text-slate-500 mb-1">
+              <Activity size={12} className="text-emerald-500"/>
+              <span className="text-[9px] font-black uppercase tracking-wider">System Status</span>
+            </div>
+            <p className="text-[9px] text-slate-400 font-semibold leading-snug">ระบบทำงานปกติ เชื่อมต่อ Firebase แล้ว</p>
           </div>
         </aside>
 
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
           <div className="max-w-4xl mx-auto space-y-6">
-            
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
-              <div>
-                <h1 className="text-2xl font-black text-slate-800 flex items-center gap-3">
-                  {projectName || 'ไม่มีโปรเจกต์'}
-                  {activeProjectId && <span className="px-2 py-1 bg-white text-slate-500 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-slate-200 shadow-sm">ID: {activeProjectId}</span>}
-                </h1>
-                <p className="text-xs font-semibold text-slate-500 mt-2">ตั้งค่าระบบ ผู้ใช้งาน และฐานข้อมูลสำหรับโปรเจกต์ที่เลือก</p>
-              </div>
-            </div>
 
-            {/* แจ้งเตือนสถานะ Save/Import */}
-            {importStatus && (
-              <div className={`p-4 rounded-xl text-sm font-bold flex items-center gap-2 animate-in fade-in duration-300 shadow-sm
-                ${importStatus.type==='error'?'bg-rose-50 text-rose-600 border border-rose-200':
-                  importStatus.type==='success'?'bg-emerald-50 text-emerald-600 border border-emerald-200':
-                  'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
-                {importStatus.type==='loading' ? <Loader2 className="animate-spin shrink-0" size={16}/> : 
-                 importStatus.type==='error' ? <AlertOctagon size={16} /> : <CheckCircle size={16}/>}
-                {importStatus.msg}
-              </div>
-            )}
-
-            {activeProjectId ? (
+            {/* ── VIEW: Firebase Config ── */}
+            {activeView === 'firebase' && (
               <>
-                {/* General Settings */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
-                  <h2 className="font-black text-slate-700 flex items-center gap-2 mb-4 border-b border-slate-100 pb-4">
-                    <Settings size={18} className="text-indigo-500"/> ข้อมูลทั่วไป & เชื่อมต่อระบบ
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">ชื่อโปรเจกต์ปัจจุบัน</label>
-                      <input type="text" value={projectName} onChange={e => setProjectName(e.target.value)}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Apps Script Web App URL</label>
-                      <input type="text" value={appsScriptUrl} onChange={e => setAppsScriptUrl(e.target.value)}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                        placeholder="https://script.google.com/macros/s/..." />
-                    </div>
+                <div className="pb-2">
+                  <h1 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                    <Flame size={22} className="text-orange-500"/> Firebase Config
+                  </h1>
+                  <p className="text-xs font-semibold text-slate-400 mt-1.5">แก้ไข Firebase project ที่ใช้งาน — บันทึกแล้วระบบจะ reload อัตโนมัติ</p>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {FIREBASE_CONFIG_KEYS.map(({ key, label, placeholder }) => (
+                      <div key={key}>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{label}</label>
+                        <input
+                          type="text"
+                          value={localFirebaseConfig[key] || ''}
+                          onChange={e => setLocalFirebaseConfig(prev => ({ ...prev, [key]: e.target.value }))}
+                          placeholder={placeholder}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-orange-400 transition-all"
+                        />
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex justify-end pt-2">
-                    <button onClick={handleSaveSettings} disabled={isSaving} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-sm transition shadow-lg flex items-center gap-2">
-                      {isSaving ? <Loader2 size={16} className="animate-spin"/> : <CheckCircle size={16}/>} บันทึกการตั้งค่า
+
+                  {/* สถานะ */}
+                  {configSaveStatus && (
+                    <div className={`p-3 rounded-xl text-sm font-bold flex items-center gap-2
+                      ${configSaveStatus === 'error' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
+                      {configSaveStatus === 'error' ? <AlertOctagon size={15}/> : <CheckCircle size={15}/>}
+                      {configSaveStatus === 'error' ? 'Config ไม่ถูกต้อง' : 'บันทึกแล้ว กำลัง reload...'}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <button
+                      onClick={handleResetFirebaseConfig}
+                      className="flex items-center gap-2 px-4 py-2.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-black transition">
+                      <RotateCcw size={13}/> รีเซ็ตเป็นค่า .env
+                    </button>
+                    <button
+                      onClick={handleSaveFirebaseConfig}
+                      disabled={configSaveStatus === 'success'}
+                      className="flex items-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white rounded-xl font-black text-sm transition shadow-lg shadow-orange-200">
+                      {configSaveStatus === 'success' ? <Loader2 size={15} className="animate-spin"/> : <Flame size={15}/>}
+                      บันทึกและ Reload
                     </button>
                   </div>
                 </div>
 
-                {/* Users / Supervisors */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
-                  <h2 className="font-black text-slate-700 flex items-center gap-2 mb-4 border-b border-slate-100 pb-4">
-                    <Users size={18} className="text-purple-500"/> จัดการรายชื่อ Supervisor (ทีมตรวจ)
-                  </h2>
-                  <div className="flex gap-3">
-                    <input type="text" value={newSupervisor} onChange={e=>setNewSupervisor(e.target.value)} placeholder="พิมพ์ชื่อ Supervisor ใหม่..." className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-purple-500" />
-                    <button onClick={handleAddSupervisor} disabled={!newSupervisor.trim()} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl font-black transition shadow-lg">เพิ่มรายชื่อ</button>
-                  </div>
-                  <div className="space-y-3 mt-6">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">รายชื่อปัจจุบัน</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      {activeSupervisorsList.map(sup => {
-                        const isDefault = DEFAULT_SUPERVISORS.includes(sup);
-                        return (
-                          <div key={sup} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm">
-                            <span className="text-sm font-bold text-slate-700 truncate">{sup}</span>
-                            {!isDefault && (supervisorsData || []).includes(sup) && <button onClick={() => handleDeleteSupervisor(sup)} className="p-2 hover:bg-rose-100 text-rose-500 rounded-lg transition shrink-0" title="ลบ"><Trash2 size={14}/></button>}
-                            {isDefault && <span className="text-[9px] font-bold text-slate-400 uppercase bg-slate-200 px-2 py-1 rounded-md shrink-0">Default</span>}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Database Management */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
-                  <h2 className="font-black text-slate-700 flex items-center gap-2 mb-4 border-b border-slate-100 pb-4">
-                    <Database size={18} className="text-emerald-500"/> จัดการฐานข้อมูลโปรเจกต์
-                  </h2>
-                  
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Sync Block */}
-                    <div className="p-5 bg-emerald-50/50 border border-emerald-100 rounded-2xl flex flex-col">
-                      <h3 className="font-black text-emerald-800 flex items-center gap-2 mb-2"><RefreshCw size={16} className="text-emerald-500"/> ดึงข้อมูลจาก Google Sheets</h3>
-                      <p className="text-[11px] text-emerald-600 font-semibold leading-relaxed mb-4 flex-1">ดึงข้อมูลอัตโนมัติผ่าน Apps Script URL หากไม่เคยตั้งค่า ให้ไปตั้งที่ส่วน <b>ข้อมูลทั่วไป</b> ด้านบนก่อน</p>
-                      <div className="flex flex-col gap-2 shrink-0">
-                        <button onClick={() => handleSyncFromSheet(false)} disabled={importStatus?.type==='loading'} className="w-full py-2.5 bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300 rounded-xl font-black text-xs transition shadow-sm">ดึงข้อมูล 500 แถวล่าสุด</button>
-                        <button onClick={() => handleSyncFromSheet(true)} disabled={importStatus?.type==='loading'} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition shadow-md">ดึงข้อมูลทั้งหมด (Full Sync)</button>
-                      </div>
-                    </div>
-                    
-                    {/* Import Block */}
-                    <div className="p-5 bg-indigo-50/50 border border-indigo-100 rounded-2xl flex flex-col">
-                      <h3 className="font-black text-indigo-800 flex items-center gap-2 mb-2"><Upload size={16} className="text-indigo-500"/> อัปโหลดข้อมูล Manual (JSON)</h3>
-                      <textarea className="w-full h-20 mb-3 p-3 bg-white border border-indigo-200 text-slate-700 font-mono text-[10px] rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 resize-none flex-1 custom-scrollbar" placeholder='[{"month":"JAN", "agent": "001 : ชื่อ", "result": "ดีเยี่ยม..."}]' value={importJson} onChange={e=>setImportJson(e.target.value)} />
-                      <button onClick={handleBulkImport} disabled={importStatus?.type==='loading'} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-md shrink-0"><FileJson size={14} className="inline mr-1"/> นำเข้าข้อมูล JSON</button>
-                    </div>
-                  </div>
-
-                  {/* Danger / Migration Zone */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
-                    <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col">
-                      <h3 className="font-black text-amber-800 flex items-center gap-2 text-sm mb-2"><Database size={16} className="text-amber-500"/> ดึงข้อมูลเก่ากลับมา</h3>
-                      <p className="text-[11px] text-amber-700 font-semibold leading-relaxed mb-4 flex-1">ใช้สำหรับดึงข้อมูลการตรวจแบบเก่า (ที่ไม่มี Project ID) เข้ามายังโปรเจกต์นี้</p>
-                      <button onClick={handleMigrateOldData} disabled={importStatus?.type==='loading'} className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-md flex items-center justify-center gap-2 shrink-0"><RefreshCw size={14} className={importStatus?.type==='loading'?'animate-spin':''}/> ย้ายข้อมูลเข้าโปรเจกต์นี้</button>
-                    </div>
-
-                    <div className="p-5 bg-rose-50 border border-rose-200 rounded-2xl flex flex-col">
-                      <h3 className="font-black text-rose-800 flex items-center gap-2 text-sm mb-2"><AlertOctagon size={16} className="text-rose-500"/> พื้นที่อันตราย</h3>
-                      <p className="text-[11px] text-rose-700 font-semibold leading-relaxed mb-4 flex-1">การล้างข้อมูลจะลบเอกสารทั้งหมดใน Collection "audit_cases" ของโปรเจกต์นี้อย่างถาวร</p>
-                      <button onClick={() => setShowClearConfirm(true)} className="w-full py-2.5 bg-white border border-rose-300 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-2 shrink-0"><Trash2 size={14}/> Clear All Database</button>
-                    </div>
-                  </div>
+                {/* Current active config */}
+                <div className="bg-slate-800 rounded-2xl p-5">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Config ที่กำลังใช้งาน (localStorage)</p>
+                  <pre className="text-[11px] text-emerald-400 font-mono leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">
+                    {firebaseConfigStr}
+                  </pre>
                 </div>
               </>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-200 rounded-2xl shadow-sm text-slate-400">
-                <FolderKanban size={48} className="mb-4 text-slate-300" />
-                <p className="text-lg font-black text-slate-500">ยังไม่ได้เลือกโปรเจกต์</p>
-                <p className="text-sm font-semibold mt-1">กรุณาเลือกหรือสร้างโปรเจกต์ใหม่จากเมนูด้านซ้าย</p>
-              </div>
+            )}
+
+            {/* ── VIEW: สิทธิ์การเข้าถึง ── */}
+            {activeView === 'access' && (
+              <>
+                <div className="pb-2">
+                  <h1 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                    <Lock size={22} className="text-rose-500"/> สิทธิ์การเข้าถึงโปรเจกต์
+                  </h1>
+                  <p className="text-xs font-semibold text-slate-400 mt-1.5">กำหนดว่า User แต่ละคนสามารถเห็นโปรเจกต์ไหนได้บ้าง — Admin เห็นทุกโปรเจกต์เสมอ</p>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                  {usersList.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                      <Users size={40} className="mb-3 text-slate-200" />
+                      <p className="font-black text-slate-500">ยังไม่พบ User ใน Firestore</p>
+                      <p className="text-xs font-semibold mt-1">ตรวจสอบ collection: user_roles</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs min-w-[500px]">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="text-left px-5 py-3.5 font-black text-slate-500 uppercase tracking-wider">User</th>
+                            <th className="text-left px-4 py-3.5 font-black text-slate-500 uppercase tracking-wider w-20">Role</th>
+                            {projects.map(p => (
+                              <th key={p.id} className="px-4 py-3.5 font-black text-slate-500 uppercase tracking-wider text-center">
+                                <span className="block max-w-[110px] truncate mx-auto" title={p.name}>{p.name}</span>
+                              </th>
+                            ))}
+                            <th className="px-4 py-3.5 font-black text-slate-500 uppercase tracking-wider text-center w-28">ทั้งหมด</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {usersList.map((user) => {
+                            const isAdmin = String(user.role || '').toLowerCase() === 'admin';
+                            const hasFullAccess = !userProjectAccess[user.email] || userProjectAccess[user.email]?.length === 0;
+                            return (
+                              <tr key={user.email} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="px-5 py-3.5">
+                                  <p className="font-bold text-slate-700 truncate max-w-[200px]" title={user.email}>{user.email}</p>
+                                </td>
+                                <td className="px-4 py-3.5">
+                                  <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wide
+                                    ${isAdmin ? 'bg-rose-100 text-rose-600' :
+                                      user.role === 'QC' ? 'bg-indigo-100 text-indigo-600' :
+                                      user.role === 'Gallup' || user.role === 'Gullup' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-slate-100 text-slate-500'}`}>
+                                    {user.role}
+                                  </span>
+                                </td>
+                                {projects.map(p => {
+                                  const allowed = isAdmin || isProjectAllowed(user.email, p.id);
+                                  const savingKey = `${user.email}_${p.id}`;
+                                  return (
+                                    <td key={p.id} className="px-4 py-3.5 text-center">
+                                      {isAdmin ? (
+                                        <span className="text-slate-200 font-bold">—</span>
+                                      ) : accessSaving[savingKey] ? (
+                                        <Loader2 size={14} className="animate-spin text-indigo-400 mx-auto" />
+                                      ) : (
+                                        <button
+                                          onClick={() => handleToggleProjectAccess(user.email, p.id, allowed)}
+                                          className={`w-5 h-5 rounded-md border-2 mx-auto flex items-center justify-center transition-all
+                                            ${allowed
+                                              ? 'bg-indigo-500 border-indigo-500 hover:bg-indigo-600 hover:border-indigo-600'
+                                              : 'bg-white border-slate-200 hover:border-indigo-300'}`}
+                                        >
+                                          {allowed && <CheckCircle size={11} className="text-white" />}
+                                        </button>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-4 py-3.5 text-center">
+                                  {isAdmin ? (
+                                    <span className="text-[10px] font-black text-rose-400 uppercase">Admin</span>
+                                  ) : accessSaving[`${user.email}_all`] ? (
+                                    <Loader2 size={14} className="animate-spin text-emerald-400 mx-auto" />
+                                  ) : (
+                                    <button
+                                      onClick={() => handleGrantAllProjects(user.email)}
+                                      disabled={hasFullAccess}
+                                      title="ให้สิทธิ์เข้าถึงทุกโปรเจกต์ (รวมโปรเจกต์ในอนาคต)"
+                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition
+                                        ${hasFullAccess
+                                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default'
+                                          : 'bg-slate-100 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 border border-transparent hover:border-emerald-200'}`}
+                                    >
+                                      {hasFullAccess ? 'ทั้งหมด ✓' : 'ให้ทั้งหมด'}
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-400 font-semibold px-1">
+                  "ทั้งหมด ✓" = User เห็นทุกโปรเจกต์รวมถึงโปรเจกต์ที่สร้างในอนาคต — untick เพื่อจำกัดสิทธิ์แต่ละโปรเจกต์
+                </p>
+              </>
+            )}
+
+            {/* ── VIEW: ตั้งค่าโปรเจกต์ ── */}
+            {activeView === 'project' && (
+              <>
+                <div className="flex items-start justify-between pb-2">
+                  <div>
+                    <h1 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                      {projectName || 'ไม่มีโปรเจกต์'}
+                      {activeProjectId && (
+                        <span className="px-2 py-1 bg-white text-slate-400 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-slate-200 shadow-sm">
+                          {activeProjectId.slice(0, 8)}…
+                        </span>
+                      )}
+                    </h1>
+                    <p className="text-xs font-semibold text-slate-400 mt-1.5">ตั้งค่าระบบ ผู้ใช้งาน และฐานข้อมูลสำหรับโปรเจกต์นี้</p>
+                  </div>
+                </div>
+
+                {/* สถานะ Save/Import */}
+                {importStatus && (
+                  <div className={`p-4 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm
+                    ${importStatus.type==='error' ? 'bg-rose-50 text-rose-600 border border-rose-200' :
+                      importStatus.type==='success' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                      'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                    {importStatus.type==='loading' ? <Loader2 className="animate-spin shrink-0" size={16}/> :
+                     importStatus.type==='error' ? <AlertOctagon size={16}/> : <CheckCircle size={16}/>}
+                    {importStatus.msg}
+                  </div>
+                )}
+
+                {activeProjectId ? (
+                  <>
+                    {/* General Settings */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+                      <h2 className="font-black text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-4">
+                        <Settings size={16} className="text-indigo-500"/> ข้อมูลทั่วไป & เชื่อมต่อระบบ
+                      </h2>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ชื่อโปรเจกต์</label>
+                          <input type="text" value={projectName} onChange={e => setProjectName(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Apps Script Web App URL</label>
+                          <input type="text" value={appsScriptUrl} onChange={e => setAppsScriptUrl(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                            placeholder="https://script.google.com/macros/s/..." />
+                        </div>
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <button onClick={handleSaveSettings} disabled={isSaving} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-sm transition shadow-lg flex items-center gap-2">
+                          {isSaving ? <Loader2 size={16} className="animate-spin"/> : <CheckCircle size={16}/>} บันทึกการตั้งค่า
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Supervisors */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+                      <h2 className="font-black text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-4">
+                        <Users size={16} className="text-purple-500"/> จัดการรายชื่อ Supervisor (ทีมตรวจ)
+                      </h2>
+                      <div className="flex gap-3">
+                        <input type="text" value={newSupervisor} onChange={e=>setNewSupervisor(e.target.value)} placeholder="พิมพ์ชื่อ Supervisor ใหม่..." className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-purple-500" />
+                        <button onClick={handleAddSupervisor} disabled={!newSupervisor.trim()} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl font-black transition shadow-lg">เพิ่มรายชื่อ</button>
+                      </div>
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">รายชื่อปัจจุบัน</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {activeSupervisorsList.map(sup => {
+                            const isDefault = DEFAULT_SUPERVISORS.includes(sup);
+                            return (
+                              <div key={sup} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                <span className="text-sm font-bold text-slate-700 truncate">{sup}</span>
+                                {!isDefault && (supervisorsData || []).includes(sup) && (
+                                  <button onClick={() => handleDeleteSupervisor(sup)} className="p-2 hover:bg-rose-100 text-rose-500 rounded-lg transition shrink-0" title="ลบ"><Trash2 size={13}/></button>
+                                )}
+                                {isDefault && <span className="text-[9px] font-bold text-slate-400 uppercase bg-slate-200 px-2 py-1 rounded-md shrink-0">Default</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Database Management */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+                      <h2 className="font-black text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-4">
+                        <Database size={16} className="text-emerald-500"/> จัดการฐานข้อมูล
+                      </h2>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="p-5 bg-emerald-50/50 border border-emerald-100 rounded-2xl flex flex-col">
+                          <h3 className="font-black text-emerald-800 flex items-center gap-2 mb-2"><RefreshCw size={15} className="text-emerald-500"/> ดึงข้อมูลจาก Google Sheets</h3>
+                          <p className="text-[11px] text-emerald-600 font-semibold leading-relaxed mb-4 flex-1">ดึงข้อมูลอัตโนมัติผ่าน Apps Script URL หากไม่เคยตั้งค่า ให้ไปตั้งที่ส่วน <b>ข้อมูลทั่วไป</b> ด้านบนก่อน</p>
+                          <div className="flex flex-col gap-2 shrink-0">
+                            <button onClick={() => handleSyncFromSheet(false)} disabled={importStatus?.type==='loading'} className="w-full py-2.5 bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 rounded-xl font-black text-xs transition shadow-sm">ดึงข้อมูล 500 แถวล่าสุด</button>
+                            <button onClick={() => handleSyncFromSheet(true)} disabled={importStatus?.type==='loading'} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs transition shadow-md">ดึงข้อมูลทั้งหมด (Full Sync)</button>
+                          </div>
+                        </div>
+                        <div className="p-5 bg-indigo-50/50 border border-indigo-100 rounded-2xl flex flex-col">
+                          <h3 className="font-black text-indigo-800 flex items-center gap-2 mb-2"><Upload size={15} className="text-indigo-500"/> อัปโหลดข้อมูล Manual (JSON)</h3>
+                          <textarea className="w-full h-20 mb-3 p-3 bg-white border border-indigo-200 text-slate-700 font-mono text-[10px] rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 resize-none flex-1" placeholder='[{"month":"JAN", "agent": "001 : ชื่อ", "result": "ดีเยี่ยม..."}]' value={importJson} onChange={e=>setImportJson(e.target.value)} />
+                          <button onClick={handleBulkImport} disabled={importStatus?.type==='loading'} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs transition shadow-md shrink-0"><FileJson size={13} className="inline mr-1"/> นำเข้าข้อมูล JSON</button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col">
+                          <h3 className="font-black text-amber-800 flex items-center gap-2 text-sm mb-2"><Database size={15} className="text-amber-500"/> ดึงข้อมูลเก่ากลับมา</h3>
+                          <p className="text-[11px] text-amber-700 font-semibold leading-relaxed mb-4 flex-1">ใช้สำหรับดึงข้อมูลการตรวจแบบเก่า (ที่ไม่มี Project ID) เข้ามายังโปรเจกต์นี้</p>
+                          <button onClick={handleMigrateOldData} disabled={importStatus?.type==='loading'} className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs transition shadow-md flex items-center justify-center gap-2 shrink-0"><RefreshCw size={13} className={importStatus?.type==='loading'?'animate-spin':''}/> ย้ายข้อมูลเข้าโปรเจกต์นี้</button>
+                        </div>
+                        <div className="p-5 bg-rose-50 border border-rose-200 rounded-2xl flex flex-col">
+                          <h3 className="font-black text-rose-800 flex items-center gap-2 text-sm mb-2"><AlertOctagon size={15} className="text-rose-500"/> พื้นที่อันตราย</h3>
+                          <p className="text-[11px] text-rose-700 font-semibold leading-relaxed mb-4 flex-1">การล้างข้อมูลจะลบเอกสารทั้งหมดใน Collection "audit_cases" ของโปรเจกต์นี้อย่างถาวร</p>
+                          <button onClick={() => setShowClearConfirm(true)} className="w-full py-2.5 bg-white border border-rose-300 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl font-black text-xs transition flex items-center justify-center gap-2 shrink-0"><Trash2 size={13}/> Clear All Database</button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-200 rounded-2xl shadow-sm text-slate-400">
+                    <FolderKanban size={44} className="mb-4 text-slate-200" />
+                    <p className="text-lg font-black text-slate-500">ยังไม่ได้เลือกโปรเจกต์</p>
+                    <p className="text-sm font-semibold mt-1 text-slate-400">กรุณาเลือกหรือสร้างโปรเจกต์ใหม่จากเมนูด้านซ้าย</p>
+                  </div>
+                )}
+              </>
             )}
 
           </div>

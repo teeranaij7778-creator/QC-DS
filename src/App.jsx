@@ -103,33 +103,49 @@ export default function App() {
   useEffect(() => {
     if (isAuthenticated && db) {
       setIsLoadingProjects(true);
-      getDocs(collection(db, 'projects')).then(snap => {
-        let projs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name));
-        
-        // ดักสิทธิ์: กรองให้เหลือโปรเจกต์เดียวหากเป็น Role Gallup หรือใช้อีเมล qc@gullup.com
-        const currentRole = String(userRole || '').toLowerCase().trim();
-        const currentEmail = String(auth?.currentUser?.email || '').toLowerCase().trim();
-        if (currentRole === 'gallup' || currentRole === 'gullup' || currentEmail === 'qc@gullup.com' || currentEmail === 'qc@gallup.com') {
-          projs = projs.filter(p => p.id === 'JE9AjnmD1UQZkFefE65X');
-        }
+      const currentRole = String(userRole || '').toLowerCase().trim();
+      const currentEmail = String(auth?.currentUser?.email || '').toLowerCase().trim();
 
-        setProjects(projs);
-        
-        // ยกเลิกการจดจำโปรเจกต์อัตโนมัติ เพื่อบังคับให้โชว์หน้า "เลือกโปรเจกต์" ก่อนเสมอ
-        if (projs.length > 0) {
-          if (projs.length === 1) {
-            handleSelectProject(projs[0].id);
-          } else {
-            setNeedsProjectSelection(true);
+      const fetchProjects = async () => {
+        try {
+          const snap = await getDocs(collection(db, 'projects'));
+          let projs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name));
+
+          // ดักสิทธิ์ Gallup
+          if (currentRole === 'gallup' || currentRole === 'gullup' || currentEmail === 'qc@gullup.com' || currentEmail === 'qc@gallup.com') {
+            projs = projs.filter(p => p.id === 'JE9AjnmD1UQZkFefE65X');
           }
+
+          // กรองตาม user_project_access (ยกเว้น Admin เห็นทุกโปรเจกต์)
+          if (currentRole !== 'admin' && currentEmail) {
+            const accessDoc = await getDoc(doc(db, 'user_project_access', currentEmail));
+            if (accessDoc.exists()) {
+              const allowed = accessDoc.data().projects || [];
+              if (allowed.length > 0) {
+                projs = projs.filter(p => allowed.includes(p.id));
+              }
+              // allowed.length === 0 = เห็นทั้งหมด (ไม่กรอง)
+            }
+            // ถ้าไม่มี document = ไม่กรอง (backward compatible)
+          }
+
+          setProjects(projs);
+
+          if (projs.length > 0) {
+            if (projs.length === 1) {
+              handleSelectProject(projs[0].id);
+            } else {
+              setNeedsProjectSelection(true);
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching projects:", err);
         }
         setIsLoadingProjects(false);
         setHasCheckedProjects(true);
-      }).catch(err => {
-        console.error("Error fetching projects:", err);
-        setIsLoadingProjects(false);
-        setHasCheckedProjects(true);
-      });
+      };
+
+      fetchProjects();
     } else if (!isAuthenticated) {
       setIsLoadingProjects(false);
       setHasCheckedProjects(false);
